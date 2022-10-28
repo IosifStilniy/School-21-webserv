@@ -9,6 +9,8 @@
 # include <stdexcept>
 # include <algorithm>
 
+# include "utils.hpp"
+
 # ifndef KB
 #  define KB(x) (x * 1024)
 # endif
@@ -28,32 +30,36 @@
 class RequestHandler
 {
 	public:
-		typedef	char						byte_type;
-		typedef	std::vector<byte_type>		bytes_type;
-		typedef bytes_type::const_iterator	bytes_iterator;
+		typedef unsigned char						byte_type;
+		typedef	std::vector<byte_type>				bytes_type;
+		typedef bytes_type::const_iterator			bytes_iterator;
+		typedef std::map<std::string, std::string>	header_fields;
 
 		struct Request
 		{
 			bytes_type		bytes;
-			bool			msg_expacted;
+			header_fields	options;
+			size_t			content_length;
+			std::string		transfer_encoding;
+			bool			is_received;
 
 			Request(void);
 
 			template <typename Iterator>
-			Request(Iterator begin, Iterator end, bool msg_expacted)
-				: bytes(begin, end), msg_expacted(msg_expacted)
+			Request(Iterator begin, Iterator end, size_t msg_length)
+				: bytes(begin, end), msg_length(msg_length), is_msg(msg_length)
 			{};
+
+			void	parseHeader(void);
+			bool	isFullyReceived(void);
 		};
 
 		typedef std::queue<Request>				request_queue;
-		typedef	std::map<int, request_queue >	socket_map;
+		typedef	std::map<int, request_queue>	socket_map;
 
 	private:
 		socket_map	_sockets;
 		byte_type	_buf[BUFSIZE];
-		ssize_t		_ret;
-		byte_type *	_msg_end;
-		byte_type *	_msg_eof;
 
 		static std::string	_eof;
 
@@ -63,8 +69,10 @@ class RequestHandler
 			return (std::search(begin, end, RequestHandler::_eof.begin(), RequestHandler::_eof.end()));
 		};
 
-		bool	_handle(request_queue & req_lst);
-		bool	_isHeader(std::string request_line);
+		size_t		_handle(Request & request);
+		byte_type *	_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end);
+		bool		_transferEnded(byte_type ** msg_start, size_t dstnc);
+		byte_type *	_chunkedTransferHandler(Request & request, byte_type * msg_start, byte_type * msg_end);
 
 	public:
 		RequestHandler(void);
