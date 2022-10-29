@@ -58,6 +58,17 @@ namespace ft
 		return (std::string(begin, end));
 	}
 
+	splited_string	splitHeader(std::string const & str)
+	{
+		splited_string				splited;
+		std::string::const_iterator	delim = std::find(str.begin(), str.end(), ':');
+
+		splited.push_back(std::string(str.begin(), delim));
+		splited.push_back(std::string(delim + 1, str.end()));
+
+		return (splited);
+	}
+
 	splited_string	split(std::string const & str, std::string delimiters, bool ignore_quotes)
 	{
 		std::queue<_ft::t_quots>		quots_lst;

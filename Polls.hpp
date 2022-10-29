@@ -6,6 +6,8 @@
 # include <string>
 # include <cstring>
 
+# define POLLCLR (POLLERR | POLLHUP | POLLNVAL)
+
 class Polls
 {
 	private:

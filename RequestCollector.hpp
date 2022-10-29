@@ -1,5 +1,5 @@
-#ifndef REQUESTHANDLER_CPP
-# define REQUESTHANDLER_CPP
+#ifndef REQUESTCOLLECTOR_CPP
+# define REQUESTCOLLECTOR_CPP
 
 # include <string>
 # include <sys/socket.h>
@@ -27,7 +27,7 @@
 #  define HTTP_EOF "\r\n\r\n"
 # endif
 
-class RequestHandler
+class RequestCollector
 {
 	public:
 		typedef unsigned char						byte_type;
@@ -41,14 +41,9 @@ class RequestHandler
 			header_fields	options;
 			size_t			content_length;
 			std::string		transfer_encoding;
-			bool			is_received;
+			bool			is_ready;
 
 			Request(void);
-
-			template <typename Iterator>
-			Request(Iterator begin, Iterator end, size_t msg_length)
-				: bytes(begin, end), msg_length(msg_length), is_msg(msg_length)
-			{};
 
 			void	parseHeader(void);
 			bool	isFullyReceived(void);
@@ -56,6 +51,9 @@ class RequestHandler
 
 		typedef std::queue<Request>				request_queue;
 		typedef	std::map<int, request_queue>	socket_map;
+
+		typedef socket_map::iterator			iterator;
+		typedef socket_map::const_iterator		const_iterator;
 
 	private:
 		socket_map	_sockets;
@@ -66,19 +64,25 @@ class RequestHandler
 		template <typename Iterator>
 		static Iterator	_getEOF(Iterator begin, Iterator end)
 		{
-			return (std::search(begin, end, RequestHandler::_eof.begin(), RequestHandler::_eof.end()));
+			return (std::search(begin, end, RequestCollector::_eof.begin(), RequestCollector::_eof.end()));
 		};
 
-		size_t		_handle(Request & request);
 		byte_type *	_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end);
 		bool		_transferEnded(byte_type ** msg_start, size_t dstnc);
 		byte_type *	_chunkedTransferHandler(Request & request, byte_type * msg_start, byte_type * msg_end);
 
 	public:
-		RequestHandler(void);
-		~RequestHandler();
+		RequestCollector(void);
+		~RequestCollector();
 
-		void	collectAndHandle(int socket);
+		Request &	operator[](int socket);
+
+		void	collect(int socket);
+
+		iterator	begin();
+		const_iterator	begin()	const;
+		iterator	end();
+		const_iterator	end()	const;
 };
 
 #endif

@@ -1,4 +1,5 @@
 #include "Polls.hpp"
+#include <iostream>
 
 Polls::Polls(void)
 {
@@ -55,7 +56,7 @@ void	Polls::append(int socket, int flag)
 	this->polls[this->size++].revents = 0;
 }
 
-void	Polls::poll(int timeout = -1)
+void	Polls::poll(int timeout)
 {
 	this->_ready = ::poll(this->polls, this->size, timeout);
 	this->clear();
@@ -90,6 +91,6 @@ size_t	Polls::getIndex(int socket)	const
 void	Polls::clear(void)
 {
 	for (size_t i = this->size; i > 0; i--)
-		if (POLLERR & this->polls[i - 1].revents)
+		if (POLLCLR & this->polls[i - 1].revents)
 			this->_erase(i - 1);
 }

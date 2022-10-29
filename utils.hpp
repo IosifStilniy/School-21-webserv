@@ -34,6 +34,7 @@ namespace ft
 	std::string		trim(std::string const & str);
 	splited_string	split(std::string const & str, std::string delimiters = SPACES, bool ignore_quotes = false);
 	std::string		toLower(std::string const & str);
+	splited_string	splitHeader(std::string const & str);
 }
 
 #endif

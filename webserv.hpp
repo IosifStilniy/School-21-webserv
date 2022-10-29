@@ -10,5 +10,6 @@
 
 # include "Meta.hpp"
 # include "Polls.hpp"
+# include "RequestCollector.hpp"
 
 #endif
