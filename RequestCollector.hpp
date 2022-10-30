@@ -30,14 +30,15 @@
 class RequestCollector
 {
 	public:
-		typedef unsigned char						byte_type;
+		typedef char								byte_type;
 		typedef	std::vector<byte_type>				bytes_type;
+		typedef std::queue<bytes_type>				chunks_type;
 		typedef bytes_type::const_iterator			bytes_iterator;
 		typedef std::map<std::string, std::string>	header_fields;
 
 		struct Request
 		{
-			bytes_type		bytes;
+			chunks_type		chunks;
 			header_fields	options;
 			size_t			content_length;
 			std::string		transfer_encoding;
@@ -56,19 +57,21 @@ class RequestCollector
 		typedef socket_map::const_iterator		const_iterator;
 
 	private:
+		static const std::string	_eof;
+
 		socket_map	_sockets;
 		byte_type	_buf[BUFSIZE];
-
-		static std::string	_eof;
+		const std::string &	_ref_eof;
 
 		template <typename Iterator>
-		static Iterator	_getEOF(Iterator begin, Iterator end)
+		Iterator	_getEOF(Iterator begin, Iterator end)
 		{
-			return (std::search(begin, end, RequestCollector::_eof.begin(), RequestCollector::_eof.end()));
+			return (std::search(begin, end, this->_ref_eof.begin(), this->_ref_eof.end()));
 		};
 
 		byte_type *	_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end);
-		bool		_transferEnded(byte_type ** msg_start, size_t dstnc);
+		bool		_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start, byte_type * msg_end);
+		bool		_transferEnded(byte_type * & msg_start, size_t dstnc);
 		byte_type *	_chunkedTransferHandler(Request & request, byte_type * msg_start, byte_type * msg_end);
 
 	public:
@@ -79,9 +82,9 @@ class RequestCollector
 
 		void	collect(int socket);
 
-		iterator	begin();
+		iterator		begin();
 		const_iterator	begin()	const;
-		iterator	end();
+		iterator		end();
 		const_iterator	end()	const;
 };
 

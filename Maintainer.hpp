@@ -5,13 +5,18 @@
 # include <map>
 # include <string>
 # include <queue>
+# include <fstream>
+
+# include "utils.hpp"
 
 # include "RequestCollector.hpp"
+
+# define PTR_FUNC(i) ((this->*(this->_methods[i])))
 
 class Maintainer
 {
 	public:
-		typedef unsigned char						byte_type;
+		typedef char								byte_type;
 		typedef	std::vector<byte_type>				bytes_type;
 		typedef std::queue<bytes_type>				chunks_type;
 		typedef bytes_type::const_iterator			bytes_iterator;
@@ -26,6 +31,14 @@ class Maintainer
 			header_fields	options;
 			bool			is_ready;
 
+			std::ifstream	in;
+			std::ofstream	out;
+			byte_type		buf[BUFSIZE];
+			byte_type *		spliter;
+			byte_type *		end;
+
+			void	readFile(std::string const & filepath);
+
 			Response(void);
 		};
 
@@ -38,7 +51,16 @@ class Maintainer
 	private:
 		socket_map	_sockets;
 
-		void	_maintainRequest(request_type & request, Response & response);
+		static const std::vector<std::string>	_methods_names;
+
+		void	_readFile(std::string const & file_path, Response & response);
+
+		void	_dispatchRequest(request_type & request, Response & response);
+		void	_get(request_type & request, Response & response);
+		void	_post(request_type & request, Response & response);
+		void	_delete(request_type & request, Response & response);
+
+		void	(Maintainer::*_methods[3])(request_type & request, Response & response);
 
 	public:
 		Maintainer(void);
@@ -46,9 +68,9 @@ class Maintainer
 
 		void	proceedRequests(RequestCollector & requests);
 
-		iterator	begin();
+		iterator		begin();
 		const_iterator	begin()	const;
-		iterator	end();
+		iterator		end();
 		const_iterator	end()	const;
 };
 

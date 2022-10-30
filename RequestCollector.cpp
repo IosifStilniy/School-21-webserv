@@ -1,11 +1,12 @@
 #include "RequestCollector.hpp"
 #include <iostream>
 
-std::string RequestCollector::_eof(HTTP_EOF);
+const std::string RequestCollector::_eof(HTTP_EOF);
 
 RequestCollector::Request::Request(void)
-	: bytes(), options(), content_length(0), transfer_encoding(), is_ready(false)
+	: chunks(), options(), content_length(0), transfer_encoding(), is_ready(false)
 {
+	chunks.push(bytes_type());
 }
 
 void	RequestCollector::Request::parseHeader(void)
@@ -13,7 +14,7 @@ void	RequestCollector::Request::parseHeader(void)
 	if (this->options.size())
 		return ;
 
-	ft::splited_string	splited = ft::split(std::string(this->bytes.begin(), this->bytes.end()), "\n");
+	ft::splited_string	splited = ft::split(std::string(this->chunks.front().begin(), this->chunks.front().end()), "\n");
 	ft::splited_string	splited_line = ft::split(splited[0]);
 
 	this->options["method"] = splited_line[0];
@@ -36,7 +37,7 @@ void	RequestCollector::Request::parseHeader(void)
 	if (length != this->options.end())
 		this->transfer_encoding = length->second;
 	
-	if (!this->content_length && !this->transfer_encoding.size())
+	if (!this->content_length || this->transfer_encoding.find("chunked") != std::string::npos)
 		this->is_ready = true;
 }
 
@@ -45,10 +46,9 @@ bool	RequestCollector::Request::isFullyReceived(void)
 	if (!this->options.size())
 		return (false);
 
-	if (
-		this->is_ready
-		|| (!this->content_length && !this->transfer_encoding.size())
-		|| (this->content_length && this->content_length == this->bytes.size())
+	if ((!this->content_length
+		&& (!this->transfer_encoding.size() || this->transfer_encoding.find("chunked") != std::string::npos))
+		|| (this->content_length && this->content_length == this->chunks.front().size())
 	)
 		return (true);
 
@@ -56,6 +56,7 @@ bool	RequestCollector::Request::isFullyReceived(void)
 }
 
 RequestCollector::RequestCollector(void)
+	: _ref_eof(RequestCollector::_eof)
 {
 }
 
@@ -63,27 +64,27 @@ RequestCollector::~RequestCollector()
 {
 }
 
-bool	RequestCollector::_transferEnded(byte_type ** msg_start, size_t dstnc)
+bool	RequestCollector::_transferEnded(byte_type * & msg_start, size_t dstnc)
 {
 	static std::string	tail = "";
 	bool				result = false;
 
-	if (dstnc < RequestCollector::_eof.size())
+	if (dstnc < this->_ref_eof.size())
 	{
-		tail.assign(*msg_start, *msg_start + dstnc);
+		tail.assign(msg_start, msg_start + dstnc);
 		return (false);
 	}
 
 	std::string	ref = tail;
 
-	dstnc = RequestCollector::_eof.size() - tail.size();
-	ref.append(*msg_start, *msg_start + dstnc);
-	result = !ref.compare(RequestCollector::_eof);
+	dstnc = this->_ref_eof.size() - tail.size();
+	ref.append(msg_start, msg_start + dstnc);
+	result = !ref.compare(this->_ref_eof);
 
 	if (result)
-		*msg_start += ref.size() - tail.size();
+		msg_start += ref.size() - tail.size();
 	else
-		*msg_start += 2 - tail.size();
+		msg_start += 2 - tail.size();
 
 	tail.clear();
 	return (result);
@@ -91,8 +92,8 @@ bool	RequestCollector::_transferEnded(byte_type ** msg_start, size_t dstnc)
 
 RequestCollector::byte_type *	RequestCollector::_chunkedTransferHandler(Request & request, byte_type * msg_start, byte_type * msg_end)
 {
-	byte_type *		eof = RequestCollector::_getEOF(msg_start, msg_end);
-	bytes_type &	bytes = request.bytes;
+	byte_type *		eof = this->_getEOF(msg_start, msg_end);
+	chunks_type &	chunks = request.chunks;
 	static size_t	chunk_size = 0;
 	size_t			dstnc;
 
@@ -101,40 +102,90 @@ RequestCollector::byte_type *	RequestCollector::_chunkedTransferHandler(Request 
 		dstnc = chunk_size;
 		if (dstnc > msg_end - msg_start)
 			dstnc = msg_end - msg_start;
-		bytes.insert(bytes.end(), msg_start, msg_start + dstnc);
+		chunks.back().insert(chunks.back().end(), msg_start, msg_start + dstnc);
 		msg_start += dstnc;
 		chunk_size -= dstnc;
 
 		if (chunk_size)
 			continue ;
 
-		if (_transferEnded(&msg_start, msg_end - msg_start))
-			return (msg_start + RequestCollector::_eof.size());
+		chunks.push(bytes_type());
+
+		if (_transferEnded(msg_start, msg_end - msg_start))
+		{
+			chunk_size = 0;
+			return (msg_start);
+		}
+		
+		chunk_size = std::stoul(std::string(
+												msg_start,
+												std::search(
+														msg_start, msg_end,
+														this->_ref_eof.begin(), this->_ref_eof.begin() + 2
+												)
+											));
 	}
 
 	return (msg_start);
 }
 
+bool	RequestCollector::_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start, byte_type * msg_end)
+{
+	if (!chunk.size() || this->_ref_eof.find(*msg_start) == std::string::npos
+		|| RequestCollector::_eof.find(chunk.back()) == std::string::npos)
+		return (false);
+
+	bytes_type::iterator	start = chunk.end();
+
+	for (; start != chunk.begin(); start--)
+		if (std::search(this->_ref_eof.begin(), this->_ref_eof.end(), start - 1, chunk.end()) == this->_ref_eof.end())
+			break ;
+
+	std::string	end(start, chunk.end());
+	size_t		dstnc = this->_ref_eof.size() - end.size();
+
+	if (msg_end - msg_start < dstnc)
+		return (false);
+
+	end.append(std::string(msg_start, msg_start + dstnc));
+
+	if (end.compare(this->_ref_eof))
+		return (false);
+
+	msg_start += dstnc;
+	chunk.erase(start, chunk.end());
+
+	return (true);
+}
+
 RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end)
 {
-	byte_type *		eof = RequestCollector::_getEOF(msg_start, msg_end);
-	bytes_type &	bytes = request.bytes;
+	byte_type *		eof = this->_getEOF(msg_start, msg_end);
+	chunks_type &	chunks = request.chunks;
 	size_t			dstnc;
 
 	while (!request.isFullyReceived() && msg_start < msg_end)
 	{
 		if (!request.options.size())
 		{
-			bytes.insert(bytes.end(), msg_start, eof);
+			if (this->_isSplitedEOF(chunks.front(), msg_start, msg_end))
+			{
+				request.parseHeader();
+				chunks.front().clear();
+				eof = this->_getEOF(msg_start, msg_end);
+				continue ;
+			}
+
+			chunks.front().insert(chunks.front().end(), msg_start, eof);
 
 			if (eof != msg_end)
 			{
 				request.parseHeader();
-				bytes.clear();
+				chunks.front().clear();
 			}
 
-			msg_start = eof + RequestCollector::_eof.size();
-			eof = RequestCollector::_getEOF(this->_buf, msg_end);
+			msg_start = eof + this->_ref_eof.size();
+			eof = this->_getEOF(msg_start, msg_end);
 
 			continue ;
 		}
@@ -143,9 +194,9 @@ RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & r
 			return (this->_chunkedTransferHandler(request, msg_start, msg_end));
 
 		dstnc = msg_end - msg_start;
-		if (bytes.size() + dstnc > request.content_length)
-			dstnc = request.content_length - bytes.size();
-		bytes.insert(bytes.end(), msg_start, msg_start + dstnc);
+		if (chunks.front().size() + dstnc > request.content_length)
+			dstnc = request.content_length - chunks.front().size();
+		chunks.front().insert(chunks.front().end(), msg_start, msg_start + dstnc);
 		msg_start += dstnc;
 	}
 
@@ -164,7 +215,6 @@ void	RequestCollector::collect(int socket)
 	if (!requests.size())
 		requests.push(Request());
 
-
 	Request *	request = &requests.back();
 	byte_type *	crsr = this->_buf;
 	byte_type *	msg_end = this->_buf + recv(socket, this->_buf, BUFSIZE, 0);
@@ -175,7 +225,7 @@ void	RequestCollector::collect(int socket)
 
 		if (!request->isFullyReceived())
 			continue ;
-		
+
 		requests.push(Request());
 		request = &requests.back();
 	}
