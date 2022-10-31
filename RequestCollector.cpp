@@ -9,6 +9,44 @@ RequestCollector::Request::Request(void)
 	chunks.push(bytes_type());
 }
 
+void	RequestCollector::Request::setValues(std::string const & fieldname, std::string const & values_string)
+{
+	ft::splited_string	splited_values = ft::split(values_string, ",");
+
+	if (!splited_values.size())
+		return ;
+
+	ft::splited_string	params;
+	ft::splited_string	key_value;
+
+	for (ft::splited_string::const_iterator start = splited_values.begin(); start != splited_values.end(); start++)
+	{
+		params = ft::split(*start, ";");
+
+		header_values_params &	new_value = this->options[fieldname].insert(std::make_pair(ft::trim(params[0]), header_values_params())).first->second;
+
+		for (ft::splited_string::const_iterator start = params.begin() + 1; start != params.end(); start++)
+		{
+			key_value = ft::split(*start, "=");
+
+			if (key_value.size() != 2)
+				continue ;
+
+			new_value.insert(std::make_pair(ft::trim(key_value[0]), ft::trim(key_value[1])));
+		}
+	}
+}
+
+std::string const &	RequestCollector::Request::getOnlyValue(header_fields::iterator field)
+{
+	return (field->second.rbegin()->first);
+}
+
+std::string const &	RequestCollector::Request::getOnlyValue(std::string const & field)
+{
+	return (this->options[field].rbegin()->first);
+}
+
 void	RequestCollector::Request::parseHeader(void)
 {
 	if (this->options.size())
@@ -17,27 +55,27 @@ void	RequestCollector::Request::parseHeader(void)
 	ft::splited_string	splited = ft::split(std::string(this->chunks.front().begin(), this->chunks.front().end()), "\n");
 	ft::splited_string	splited_line = ft::split(splited[0]);
 
-	this->options["method"] = splited_line[0];
-	this->options["content-path"] = splited_line[1];
-	this->options["http-version"] = splited_line[2];
+	this->setValues("method", splited_line[0]);
+	this->setValues("content-path", splited_line[1]);
+	this->setValues("http-version", splited_line[2]);
 
-	for (ft::splited_string::iterator start = splited.begin() + 1, end = splited.end(); start != end; start++)
+	for (ft::splited_string::iterator start = splited.begin() + 1; start != splited.end(); start++)
 	{
 		splited_line = ft::splitHeader(*start);
-		this->options[ft::trim(splited_line[0])] = ft::trim(splited_line[1]);
+		this->setValues(ft::trim(splited_line[0]), splited_line[1]);
 	}
 
 	header_fields::iterator	length = this->options.find("Content-Length");
 
 	if (length != this->options.end())
-		this->content_length = std::stoul(length->second);
+		this->content_length = strtoul(this->getOnlyValue(length).c_str(), NULL, 10);
 
 	length = this->options.find("Transfer-Encoding");
 
 	if (length != this->options.end())
 		this->transfer_encoding = length->second;
 	
-	if (!this->content_length || this->transfer_encoding.find("chunked") != std::string::npos)
+	if (!this->content_length || this->transfer_encoding.find("chunked") != this->transfer_encoding.end())
 		this->is_ready = true;
 }
 
@@ -47,7 +85,7 @@ bool	RequestCollector::Request::isFullyReceived(void)
 		return (false);
 
 	if ((!this->content_length
-		&& (!this->transfer_encoding.size() || this->transfer_encoding.find("chunked") != std::string::npos))
+		&& (!this->transfer_encoding.size() || this->transfer_encoding.find("chunked") != this->transfer_encoding.end()))
 		|| (this->content_length && this->content_length == this->chunks.front().size())
 	)
 		return (true);
@@ -117,13 +155,13 @@ RequestCollector::byte_type *	RequestCollector::_chunkedTransferHandler(Request 
 			return (msg_start);
 		}
 		
-		chunk_size = std::stoul(std::string(
+		chunk_size = strtoul(std::string(
 												msg_start,
 												std::search(
 														msg_start, msg_end,
 														this->_ref_eof.begin(), this->_ref_eof.begin() + 2
 												)
-											));
+											).c_str(), &msg_start, 10);
 	}
 
 	return (msg_start);
@@ -190,7 +228,7 @@ RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & r
 			continue ;
 		}
 
-		if (request.transfer_encoding.find("chunked") != std::string::npos)
+		if (request.transfer_encoding.find("chunked") != request.transfer_encoding.end())
 			return (this->_chunkedTransferHandler(request, msg_start, msg_end));
 
 		dstnc = msg_end - msg_start;

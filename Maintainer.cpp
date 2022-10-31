@@ -1,5 +1,37 @@
 #include "Maintainer.hpp"
 
+void	Maintainer::Response::readFile(std::string const & file_path)
+{
+	if (!this->in.is_open())
+		this->in.open(file_path, std::ios_base::binary);
+	
+	if (!this->in.good())
+		throw std::runtime_error("bad filename");
+
+	if (!this->chunks.size() || this->chunks.back().size() == sizeof(this->buf))
+		this->chunks.push(bytes_type());
+
+	bytes_type &	chunk = this->chunks.back();
+	
+	this->in.read(this->buf, sizeof(this->buf));
+
+	size_t	length = this->in.gcount();
+
+	this->end = this->buf + length;
+	this->spliter = this->end;
+
+	if (length > sizeof(this->buf) - chunk.size())
+		this->spliter = this->buf + sizeof(this->buf) - chunk.size();
+	
+	chunk.insert(chunk.end(), this->buf, this->spliter);
+
+	if (this->spliter != this->end)
+		chunks.push(bytes_type(this->spliter, this->end));
+
+	if (this->in.eof())
+		this->in.close();
+}
+
 static std::vector<std::string>	methodsNameInit(void)
 {
 	std::vector<std::string>	methods;
@@ -18,34 +50,6 @@ Maintainer::Response::Response(void)
 {
 }
 
-void	Maintainer::Response::readFile(std::string const & file_path)
-{
-	if (!this->in.is_open())
-		this->in.open(file_path, std::ios_base::binary);
-
-	if (!this->chunks.size() || this->chunks.back().size() == sizeof(this->buf))
-		this->chunks.push(bytes_type());
-
-	bytes_type &	chunk = this->chunks.back();
-	
-	this->in.read(this->buf, sizeof(this->buf));
-
-	size_t	length = this->in.gcount();
-	this->end = this->buf + length;
-	this->spliter = this->end;
-
-	if (length > sizeof(this->buf) - chunk.size())
-		this->spliter = this->buf + sizeof(this->buf) - chunk.size();
-	
-	chunk.insert(chunk.end(), this->buf, this->spliter);
-
-	if (this->spliter != this->end)
-		chunks.push(bytes_type(this->spliter, this->end));
-
-	if (this->in.eof())
-		this->in.close();
-}
-
 Maintainer::Maintainer(void)
 {
 }
@@ -56,7 +60,28 @@ Maintainer::~Maintainer()
 
 void	Maintainer::_get(request_type & request, Response & response)
 {
+	if (request.getOnlyValue("content-path").back() == '/')
+		response.readFile(request.getOnlyValue("content-path") + "index.html");
+	else
+		response.readFile(request.getOnlyValue("content-path"));
 	
+	if (response.is_ready)
+		return ;
+	
+	if (response.in.is_open())
+	{
+		response.options["Transfer-Encoding"].size();
+		response.is_ready = true;
+		return ;
+	}
+
+	size_t	length = response.chunks.front().size();
+
+	if (response.chunks.front() != response.chunks.back())
+		length += response.chunks.back().size();
+
+	response.options["Content-Length"] = ft::num_to_string(length);
+	response.is_ready = true;
 }
 
 void	Maintainer::_post(request_type & request, Response & response)
@@ -74,7 +99,7 @@ void	Maintainer::_dispatchRequest(request_type & request, Response & response)
 	int	i = 0;
 
 	for (; i < Maintainer::_methods_names.size(); i++)
-			if (!Maintainer::_methods_names[i].compare(request.options["method"]))
+			if (!Maintainer::_methods_names[i].compare(request.getOnlyValue("method")))
 				break ;
 	
 	PTR_FUNC(i)(request, response);

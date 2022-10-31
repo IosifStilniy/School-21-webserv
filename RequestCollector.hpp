@@ -8,6 +8,8 @@
 # include <queue>
 # include <stdexcept>
 # include <algorithm>
+# include <cstdlib>
+# include <iostream>
 
 # include "utils.hpp"
 
@@ -30,24 +32,58 @@
 class RequestCollector
 {
 	public:
-		typedef char								byte_type;
-		typedef	std::vector<byte_type>				bytes_type;
-		typedef std::queue<bytes_type>				chunks_type;
-		typedef bytes_type::const_iterator			bytes_iterator;
-		typedef std::map<std::string, std::string>	header_fields;
+		typedef char										byte_type;
+		typedef	std::vector<byte_type>						bytes_type;
+		typedef std::queue<bytes_type>						chunks_type;
+		typedef bytes_type::const_iterator					bytes_iterator;
+		typedef std::map<std::string, std::string>			header_values_params;
+		typedef std::map<std::string, header_values_params>	header_values;
+		typedef std::map<std::string, header_values>		header_fields;
 
 		struct Request
 		{
 			chunks_type		chunks;
 			header_fields	options;
 			size_t			content_length;
-			std::string		transfer_encoding;
+			header_values	transfer_encoding;
 			bool			is_ready;
 
 			Request(void);
 
-			void	parseHeader(void);
-			bool	isFullyReceived(void);
+			public:
+				void				parseHeader(void);
+				bool				isFullyReceived(void);
+				std::string const &	getOnlyValue(std::string const & field);
+				std::string const &	getOnlyValue(header_fields::iterator field);
+				void				setValues(std::string const & fieldname, std::string const & values);
+
+				template <typename T>
+				void				printOptions(std::map<std::string, T> const & options, int indent = 0)
+				{
+					for (typename std::map<std::string, T>::const_iterator start = options.begin(); start != options.end(); start++)
+					{
+						std::cout.width(indent);
+						std::cout << "";
+						std::cout << start->first;
+						if (start->second.size())
+						{
+							std::cout << ": " << std::endl;
+							printOptions(start->second, indent + 4);
+						}
+						else
+							std::cout << ";" << std::endl;
+					}
+				};
+
+				void	printOptions(std::map<std::string, std::string> const & options, int indent = 0)
+				{
+					for (std::map<std::string, std::string>::const_iterator start = options.begin(); start != options.end(); start++)
+					{
+						std::cout.width(indent);
+						std::cout << "";
+						std::cout << start->first << " = " << start->second << std::endl;
+					}
+				}
 		};
 
 		typedef std::queue<Request>				request_queue;
