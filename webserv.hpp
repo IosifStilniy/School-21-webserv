@@ -12,5 +12,6 @@
 # include "Polls.hpp"
 # include "RequestCollector.hpp"
 # include "Maintainer.hpp"
+# include "ResponseHandler.hpp"
 
 #endif

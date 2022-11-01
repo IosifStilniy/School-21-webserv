@@ -57,6 +57,8 @@ class RequestCollector
 				std::string const &	getOnlyValue(header_fields::iterator field);
 				void				setValues(std::string const & fieldname, std::string const & values);
 
+				void	printOptions(header_values_params const & options, int indent = 0);
+
 				template <typename T>
 				void				printOptions(std::map<std::string, T> const & options, int indent = 0)
 				{
@@ -74,16 +76,6 @@ class RequestCollector
 							std::cout << ";" << std::endl;
 					}
 				};
-
-				void	printOptions(std::map<std::string, std::string> const & options, int indent = 0)
-				{
-					for (std::map<std::string, std::string>::const_iterator start = options.begin(); start != options.end(); start++)
-					{
-						std::cout.width(indent);
-						std::cout << "";
-						std::cout << start->first << " = " << start->second << std::endl;
-					}
-				}
 		};
 
 		typedef std::queue<Request>				request_queue;
@@ -114,7 +106,7 @@ class RequestCollector
 		RequestCollector(void);
 		~RequestCollector();
 
-		Request &	operator[](int socket);
+		request_queue &	operator[](int socket);
 
 		void	collect(int socket);
 

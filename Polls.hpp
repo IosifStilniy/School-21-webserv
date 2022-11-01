@@ -5,6 +5,7 @@
 # include <stdexcept>
 # include <string>
 # include <cstring>
+# include <sys/socket.h>
 
 # define POLLCLR (POLLERR | POLLHUP | POLLNVAL)
 
@@ -21,8 +22,8 @@ class Polls
 		void	_erase(size_t i);
 
 	public:
-		pollfd	*polls;
-		size_t	size;
+		pollfd *	polls;
+		size_t		size;
 		
 		Polls(int socket, int flag);
 		~Polls();
@@ -30,6 +31,8 @@ class Polls
 		pollfd *	operator[](int socket);
 
 		void		append(int socket, int flag);
+		pollfd &	back(void);
+		void		setSockOpt(pollfd & poll_struct, int option_name, int option_value);
 		void		poll(int timeout = -1);
 		int			getNextSocket(void);
 		size_t		getIndex(int socket)			const;

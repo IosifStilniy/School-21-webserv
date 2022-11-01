@@ -1,24 +1,33 @@
 #include "Maintainer.hpp"
 
+Maintainer::Response::Response(void)
+	: chunks(), options(), status(0)
+{
+}
+
+Maintainer::Response::Response(const Response & src)
+{
+}
+
 void	Maintainer::Response::readFile(std::string const & file_path)
 {
 	if (!this->in.is_open())
 		this->in.open(file_path, std::ios_base::binary);
 	
 	if (!this->in.good())
-		throw std::runtime_error("bad filename");
+		return ;
 
-	if (!this->chunks.size() || this->chunks.back().size() == sizeof(this->buf))
+	if (this->chunks.empty() || this->chunks.back().size() == sizeof(this->buf))
 		this->chunks.push(bytes_type());
 
-	bytes_type &	chunk = this->chunks.back();
-	
 	this->in.read(this->buf, sizeof(this->buf));
 
 	size_t	length = this->in.gcount();
 
 	this->end = this->buf + length;
 	this->spliter = this->end;
+
+	bytes_type &	chunk = this->chunks.back();
 
 	if (length > sizeof(this->buf) - chunk.size())
 		this->spliter = this->buf + sizeof(this->buf) - chunk.size();
@@ -45,17 +54,30 @@ static std::vector<std::string>	methodsNameInit(void)
 
 const std::vector<std::string> Maintainer::_methods_names = methodsNameInit();
 
-Maintainer::Response::Response(void)
-	: chunks(), options(), is_ready(false)
-{
-}
-
 Maintainer::Maintainer(void)
 {
+	this->_methods[0] = &Maintainer::_get;
+	this->_methods[1] = &Maintainer::_post;
+	this->_methods[2] = &Maintainer::_delete;
 }
 
 Maintainer::~Maintainer()
 {
+}
+
+void	Maintainer::_badResponse(int status, Response & response)
+{
+	response.status = 404;
+
+	if (response.in.is_open())
+		response.in.close();
+	
+	while (!response.chunks.empty())
+		response.chunks.pop();
+	
+	response.readFile("root/" + ft::num_to_string(status) + ".html");
+	response.options["Content-Length"] = ft::num_to_string(response.chunks.front().size());
+	response.options["Content-Type"] = "text/html";
 }
 
 void	Maintainer::_get(request_type & request, Response & response)
@@ -65,13 +87,21 @@ void	Maintainer::_get(request_type & request, Response & response)
 	else
 		response.readFile(request.getOnlyValue("content-path"));
 	
-	if (response.is_ready)
+	if (response.status)
 		return ;
-	
+
+	response.options["Server"] = "webserv/0.1";
+
+	if (!response.in.good() && !response.in.eof())
+	{
+		this->_badResponse(404, response);
+		return ;
+	}
+
 	if (response.in.is_open())
 	{
 		response.options["Transfer-Encoding"].size();
-		response.is_ready = true;
+		response.status = 200;
 		return ;
 	}
 
@@ -81,7 +111,8 @@ void	Maintainer::_get(request_type & request, Response & response)
 		length += response.chunks.back().size();
 
 	response.options["Content-Length"] = ft::num_to_string(length);
-	response.is_ready = true;
+	response.status = 200;
+
 }
 
 void	Maintainer::_post(request_type & request, Response & response)
@@ -99,30 +130,35 @@ void	Maintainer::_dispatchRequest(request_type & request, Response & response)
 	int	i = 0;
 
 	for (; i < Maintainer::_methods_names.size(); i++)
-			if (!Maintainer::_methods_names[i].compare(request.getOnlyValue("method")))
-				break ;
-	
+		if (!Maintainer::_methods_names[i].compare(ft::toLower(request.getOnlyValue("method"))))
+			break ;
+
 	PTR_FUNC(i)(request, response);
+}
+
+Maintainer::response_queue &	Maintainer::operator[](int socket)
+{
+	return (this->_sockets[socket]);
 }
 
 void	Maintainer::proceedRequests(RequestCollector & requests)
 {
-	for (RequestCollector::iterator	start = requests.begin(), end = requests.end(); start != end; start++)
+	for (RequestCollector::iterator	start = requests.begin(); start != requests.end(); start++)
 	{
 		const int &			socket = start->first;
 		request_queue &		req_queue = start->second;
 
-		if (!req_queue.size() || !req_queue.front().is_ready)
+		if (req_queue.empty() || !req_queue.front().is_ready)
 			continue ;
 
 		response_queue &	responses = this->_sockets[socket];
 
-		if (!responses.size())
+		if (responses.empty())
 			responses.push(Response());
 
 		this->_dispatchRequest(req_queue.front(), responses.back());
 
-		if (!responses.back().is_ready)
+		if (!responses.back().status)
 			continue ;
 
 		responses.push(Response());

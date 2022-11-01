@@ -6,19 +6,43 @@ namespace _ft
 	{
 		t_quots						quots;
 		std::queue<t_quots>			quots_lst;
+		std::string::const_iterator	quote_type;
+		size_t						op_count = 0;
 
 		quots.begin = std::find_first_of(str.begin(), str.end(), quots_string.begin(), quots_string.end());
+		quote_type = std::find(quots_string.begin(), quots_string.end(), *quots.begin);
 
 		while (quots.begin != str.end())
 		{
-			quots.end = std::find_first_of(quots.begin + 1, str.end(), quots_string.begin(), quots_string.end());
+			quots.end = quots.begin;
+
+			if (*quote_type == *(quote_type + 1))
+				while (quots.end != str.end() && (*quots.end != *quots.begin || quots.end == quots.begin))
+					quots.end = std::find_first_of(quots.end + 1, str.end(), quots_string.begin(), quots_string.end());
+			else
+			{
+				while (quots.end != str.end() && (*quots.end != *(quote_type + 1) || op_count))
+				{
+					if (*quots.end == *quote_type)
+						op_count++;
+					
+					quots.end = std::find_first_of(quots.end + 1, str.end(), quots_string.begin(), quots_string.end());
+
+					if (!op_count || *quots.end != *(quote_type + 1))
+						continue ;
+					
+					op_count--;
+				}
+			}
 
 			if (quots.end == str.end())
-				throw std::out_of_range("quotes not closed");
+				return (quots_lst);
 			
 			quots_lst.push(quots);
 
+			op_count = 0;
 			quots.begin = std::find_first_of(quots.end + 1, str.end(), quots_string.begin(), quots_string.end());
+			quote_type = std::find(quots_string.begin(), quots_string.end(), *quots.begin);
 		}
 
 		return (quots_lst);

@@ -56,6 +56,16 @@ void	Polls::append(int socket, int flag)
 	this->polls[this->size++].revents = 0;
 }
 
+pollfd &	Polls::back(void)
+{
+	return (this->polls[this->size - 1]);
+}
+
+void	Polls::setSockOpt(pollfd & poll_struct, int option_name, int option_value)
+{
+	setsockopt(poll_struct.fd, SOL_SOCKET, option_name, &option_value, sizeof(option_value));
+}
+
 void	Polls::poll(int timeout)
 {
 	this->_ready = ::poll(this->polls, this->size, timeout);
@@ -66,11 +76,11 @@ int		Polls::getNextSocket(void)
 {
 	for (; this->_ready && this->_current < this->size; this->_current++)
 	{
-		if (!(this->polls[this->_current].events == this->polls[this->_current].revents))
+		if (!(this->polls[this->_current].events & this->polls[this->_current].revents))
 			continue ;
 
 		this->_ready--;
-		return(this->polls[this->_current++].fd);
+		return (this->polls[this->_current++].fd);
 	}
 
 	if (!this->_ready)

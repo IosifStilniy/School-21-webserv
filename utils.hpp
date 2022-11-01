@@ -13,7 +13,7 @@
 # endif
 
 # ifndef QUOTE_CHARS
-#  define QUOTE_CHARS "\"'"
+#  define QUOTE_CHARS "\"\"''()"
 # endif
 
 namespace _ft

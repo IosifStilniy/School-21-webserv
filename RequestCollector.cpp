@@ -13,7 +13,7 @@ void	RequestCollector::Request::setValues(std::string const & fieldname, std::st
 {
 	ft::splited_string	splited_values = ft::split(values_string, ",");
 
-	if (!splited_values.size())
+	if (splited_values.empty())
 		return ;
 
 	ft::splited_string	params;
@@ -49,7 +49,7 @@ std::string const &	RequestCollector::Request::getOnlyValue(std::string const & 
 
 void	RequestCollector::Request::parseHeader(void)
 {
-	if (this->options.size())
+	if (!this->options.empty())
 		return ;
 
 	ft::splited_string	splited = ft::split(std::string(this->chunks.front().begin(), this->chunks.front().end()), "\n");
@@ -81,16 +81,26 @@ void	RequestCollector::Request::parseHeader(void)
 
 bool	RequestCollector::Request::isFullyReceived(void)
 {
-	if (!this->options.size())
+	if (this->options.empty())
 		return (false);
 
 	if ((!this->content_length
-		&& (!this->transfer_encoding.size() || this->transfer_encoding.find("chunked") != this->transfer_encoding.end()))
+		&& (this->transfer_encoding.empty() || this->transfer_encoding.find("chunked") != this->transfer_encoding.end()))
 		|| (this->content_length && this->content_length == this->chunks.front().size())
 	)
 		return (true);
 
 	return (false);
+}
+
+void	RequestCollector::Request::printOptions(header_values_params const & options, int indent)
+{
+	for (header_values_params::const_iterator start = options.begin(); start != options.end(); start++)
+	{
+		std::cout.width(indent);
+		std::cout << "";
+		std::cout << start->first << " = " << start->second << std::endl;
+	}
 }
 
 RequestCollector::RequestCollector(void)
@@ -169,7 +179,7 @@ RequestCollector::byte_type *	RequestCollector::_chunkedTransferHandler(Request 
 
 bool	RequestCollector::_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start, byte_type * msg_end)
 {
-	if (!chunk.size() || this->_ref_eof.find(*msg_start) == std::string::npos
+	if (chunk.empty() || this->_ref_eof.find(*msg_start) == std::string::npos
 		|| RequestCollector::_eof.find(chunk.back()) == std::string::npos)
 		return (false);
 
@@ -204,7 +214,7 @@ RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & r
 
 	while (!request.isFullyReceived() && msg_start < msg_end)
 	{
-		if (!request.options.size())
+		if (request.options.empty())
 		{
 			if (this->_isSplitedEOF(chunks.front(), msg_start, msg_end))
 			{
@@ -241,16 +251,16 @@ RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & r
 	return (msg_start);
 }
 
-RequestCollector::Request &	RequestCollector::operator[](int socket)
+RequestCollector::request_queue &	RequestCollector::operator[](int socket)
 {
-	return (this->_sockets[socket].front());
+	return (this->_sockets[socket]);
 }
 
 void	RequestCollector::collect(int socket)
 {
 	request_queue &	requests = this->_sockets[socket];
 
-	if (!requests.size())
+	if (requests.empty())
 		requests.push(Request());
 
 	Request *	request = &requests.back();

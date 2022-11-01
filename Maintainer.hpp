@@ -29,7 +29,7 @@ class Maintainer
 		{
 			chunks_type		chunks;
 			header_fields	options;
-			bool			is_ready;
+			int				status;
 
 			std::ifstream	in;
 			std::ofstream	out;
@@ -40,6 +40,7 @@ class Maintainer
 			void	readFile(std::string const & filepath);
 
 			Response(void);
+			Response(const Response & src);
 		};
 
 		typedef std::queue<Response>			response_queue;
@@ -60,11 +61,15 @@ class Maintainer
 		void	_post(request_type & request, Response & response);
 		void	_delete(request_type & request, Response & response);
 
+		void	_badResponse(int status, Response & response);
+
 		void	(Maintainer::*_methods[3])(request_type & request, Response & response);
 
 	public:
 		Maintainer(void);
 		~Maintainer();
+
+		response_queue &	operator[](int socket);
 
 		void	proceedRequests(RequestCollector & requests);
 
