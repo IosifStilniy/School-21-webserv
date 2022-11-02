@@ -100,7 +100,9 @@ void	Maintainer::_get(request_type & request, Response & response)
 
 	if (response.in.is_open())
 	{
-		response.options["Transfer-Encoding"].size();
+		if (!response.options["Transfer-Encoding"].empty())
+			response.options["Transfer-Encoding"].append(",");
+		response.options["Transfer-Encoding"].append("chunked");
 		response.status = 200;
 		return ;
 	}

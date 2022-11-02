@@ -50,7 +50,11 @@ class Maintainer
 		typedef socket_map::const_iterator		const_iterator;
 
 	private:
-		socket_map	_sockets;
+		typedef	std::map<std::string, std::string>	locations_type;
+
+	private:
+		socket_map		_sockets;
+		locations_type	_locations;
 
 		static const std::vector<std::string>	_methods_names;
 

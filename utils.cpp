@@ -16,23 +16,18 @@ namespace _ft
 		{
 			quots.end = quots.begin;
 
-			if (*quote_type == *(quote_type + 1))
-				while (quots.end != str.end() && (*quots.end != *quots.begin || quots.end == quots.begin))
-					quots.end = std::find_first_of(quots.end + 1, str.end(), quots_string.begin(), quots_string.end());
-			else
+			while (quots.end != str.end()
+				&& (*quots.end != *(quote_type + 1) || op_count || quots.end == quots.begin))
 			{
-				while (quots.end != str.end() && (*quots.end != *(quote_type + 1) || op_count))
-				{
-					if (*quots.end == *quote_type)
-						op_count++;
-					
-					quots.end = std::find_first_of(quots.end + 1, str.end(), quots_string.begin(), quots_string.end());
+				if (*quots.end == *quote_type && *quote_type != *(quote_type + 1))
+					op_count++;
+				
+				quots.end = std::find_first_of(quots.end + 1, str.end(), quots_string.begin(), quots_string.end());
 
-					if (!op_count || *quots.end != *(quote_type + 1))
-						continue ;
-					
-					op_count--;
-				}
+				if (!op_count || *quots.end != *(quote_type + 1))
+					continue ;
+				
+				op_count--;
 			}
 
 			if (quots.end == str.end())
@@ -40,7 +35,6 @@ namespace _ft
 			
 			quots_lst.push(quots);
 
-			op_count = 0;
 			quots.begin = std::find_first_of(quots.end + 1, str.end(), quots_string.begin(), quots_string.end());
 			quote_type = std::find(quots_string.begin(), quots_string.end(), *quots.begin);
 		}
