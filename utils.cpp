@@ -61,27 +61,35 @@ namespace ft
 {
 	std::string	trim(std::string const & str)
 	{
-		std::string::const_iterator	begin = str.begin();
-		std::string::const_iterator	end = str.end();
+		std::string::const_iterator			begin = str.begin();
+		std::string::const_reverse_iterator	rbegin = str.rbegin();
 
-		for (; begin != end; begin++)
+		for (; begin != str.end(); begin++)
 			if (!isspace(*begin))
 				break ;
 		
 
-		for (; end != begin; end--)
-			if (!isspace(*(end - 1)))
+		for (; rbegin != str.rend(); rbegin++)
+			if (!isspace(*rbegin))
 				break ;
 		
-		return (std::string(begin, end));
+		return (std::string(begin, rbegin.base()));
 	}
 
-	splited_string	splitHeader(std::string const & str)
+	splited_string	splitHeader(std::string const & str, std::string const & separators)
 	{
 		splited_string				splited;
-		std::string::const_iterator	delim = std::find(str.begin(), str.end(), ':');
+
+		if (str.empty())
+			return (splited);
+
+		std::string::const_iterator	delim = std::find_first_of(str.begin(), str.end(), separators.begin(), separators.end());
 
 		splited.push_back(std::string(str.begin(), delim));
+
+		if (delim == str.end())
+			return (splited);
+
 		splited.push_back(std::string(delim + 1, str.end()));
 
 		return (splited);
@@ -127,5 +135,34 @@ namespace ft
 			*start = tolower(*start);
 		
 		return (lower);
+	}
+
+	bool	isDirectory(std::string const & filename)
+	{
+		std::ofstream	file(filename);
+
+		if (file.is_open())
+			file.close();
+
+		if (file.good())
+			return (false);
+
+		if (errno == 21)
+			return (true);
+		
+		return (false);
+	}
+
+	void	readConfFile(std::ifstream & conf_file, std::string & line)
+	{
+		if (conf_file.eof())
+		{
+			line.clear();
+			return ;
+		}
+
+		std::getline(conf_file, line);
+
+		line = ft::trim(line.substr(0, line.find('#')));
 	}
 };

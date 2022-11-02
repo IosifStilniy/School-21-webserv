@@ -61,7 +61,7 @@ void	RequestCollector::Request::parseHeader(void)
 
 	for (ft::splited_string::iterator start = splited.begin() + 1; start != splited.end(); start++)
 	{
-		splited_line = ft::splitHeader(*start);
+		splited_line = ft::splitHeader(*start, ":");
 		this->setValues(ft::trim(splited_line[0]), splited_line[1]);
 	}
 

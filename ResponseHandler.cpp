@@ -2,16 +2,17 @@
 
 static std::map<int, std::string>	statusesInit(void)
 {
-	std::ifstream				status_file("statuses");
+	std::ifstream				status_file;
+
+	ft::openFile(status_file, "statuses");
+
 	std::string					line;
 	ft::splited_string			splited;
 	std::map<int, std::string>	statuses;
 
 	while (!status_file.eof())
 	{
-		std::getline(status_file, line);
-
-		line = line.substr(0, line.find('#'));
+		ft::readConfFile(status_file, line);
 
 		if (line.empty())
 			continue ;

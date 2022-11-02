@@ -1,0 +1,6 @@
+listen
+server_name
+root
+indexes
+server
+location
