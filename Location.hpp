@@ -22,7 +22,7 @@ class Location
 		std::string					root;
 		std::vector<std::string>	indexes;
 		std::vector<std::string>	methods;
-		std::vector<std::string>	redirs;
+		std::string					redir;
 		std::string					e_is_dir;
 		size_t						buf_size;
 

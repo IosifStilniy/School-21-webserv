@@ -86,11 +86,15 @@ namespace ft
 		std::string::const_iterator	delim = std::find_first_of(str.begin(), str.end(), separators.begin(), separators.end());
 
 		splited.push_back(std::string(str.begin(), delim));
+		splited.push_back(std::string());
+
+		while (delim != str.end() && separators.find(*delim) != std::string::npos)
+			delim++;
 
 		if (delim == str.end())
 			return (splited);
-
-		splited.push_back(std::string(delim + 1, str.end()));
+		
+		splited.back() = std::string(delim + 1, str.end());
 
 		return (splited);
 	}

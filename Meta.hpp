@@ -10,6 +10,7 @@
 # include <fstream>
 # include <map>
 # include <vector>
+# include <fcntl.h>
 
 # include "utils.hpp"
 
@@ -31,6 +32,12 @@ class Meta
 	private:
 		static const std::vector<std::string>	_keywords;
 
+		struct ParsedEntity
+		{
+			std::map<std::string, std::vector<std::string> >	params;
+			std::map<std::string, ParsedEntity>					locations;
+		};
+
 	public:
 		Meta(std::string const & conf_file);
 		Meta(std::string const & address, int port);
@@ -38,8 +45,9 @@ class Meta
 		
 	
 	private:
-		void	_parseServerBlock(std::ifstream & conf, Server & server, size_t & line_counter);
-		void	_parseLocationBlock(std::ifstream & conf, Location & location, size_t & line_counter);
+		void	_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & line_counter);
+		void	_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter);
+		void	_prepareServer(ParsedEntity & p_server, Server & server);
 };
 
 #endif

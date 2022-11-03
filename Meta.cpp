@@ -52,55 +52,95 @@ Meta::Meta(std::string const & conf_file)
 
 	ft::openFile(conf, conf_file);
 
-	std::string			line;
-	ft::splited_string	splited;
-	size_t				line_counter = 0;
+	size_t						line_counter = 0;
+	std::queue<ParsedEntity>	parsed_servers;
 
 	while (conf.good())
-	{
-		ft::readConfFile(conf, line);
-		line_counter++;
-
-		if (line.empty())
-			continue ;
-
-		splited = ft::split(line);
-
-		ft::splited_string::const_iterator	srv = std::find(splited.begin(), splited.end(), "server");
-
-		if (srv == splited.end())
-			continue ;
-		
-		if (srv != splited.begin() || splited.size() != 2 || splited[1] != "{")
-			std::logic_error("line " + ft::num_to_string(line_counter) + ": server keyword line must be kind of 'server {', that is");
-
-		this->servers.push_back(Server());
-		this->_parseServerBlock(conf, this->servers.back());
-	}
+		this->_readConfLine(conf, parsed_servers, line_counter);
 
 	if (!conf.eof())
 		throw std::runtime_error(std::string(conf_file + ": " + strerror(errno)).c_str());
+	
+	while (!parsed_servers.empty())
+	{
+		this->servers.push_back(Server());
+		this->_prepareServer(parsed_servers.front(), this->servers.back());
+		parsed_servers.pop();
+	}
+	
 }
 
 Meta::~Meta()
 {
 }
 
-void	Meta::_parseServerBlock(std::ifstream & conf, Server & server, size_t & line_counter)
+void	Meta::_prepareServer(ParsedEntity & p_server, Server & server)
+{
+	if (p_server.locations.empty())
+		throw std::logic_error("server must have at least 1 location");
+
+	if (!p_server.params["server_name"].empty())
+		server.server_name = p_server.params["server_name"][0];
+
+	if (!p_server.params["listen"].empty())
+	{
+		ft::splited_string	host_port = ft::splitHeader(p_server.params["listen"][0], ":");
+
+		if (!host_port[0].empty())
+			server.host = host_port[0];
+		if (!host_port[1].empty())
+			server.port = htons(strtoul(host_port[1].c_str(), NULL, 10));
+	}
+
+	for (std::map<std::string, ParsedEntity>::const_iterator location = p_server.locations.begin(); location != p_server.locations.end(); location++)
+	{
+
+	}
+}
+
+void	Meta::_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter)
+{
+	std::string					line;
+	ft::splited_string			splited;
+
+	ft::readConfFile(file, line);
+	line_counter++;
+
+	if (line.empty())
+		return ;
+
+	splited = ft::split(line);
+
+	ft::splited_string::const_iterator	srv = std::find(splited.begin(), splited.end(), "server");
+
+	if (srv == splited.end())
+		return ;
+	
+	if (srv != splited.begin() || splited.size() != 2 || splited[1] != "{")
+		std::logic_error("line " + ft::num_to_string(line_counter) + ": server keyword line must be kind of 'server {', that is");
+
+	parsed_servers.push(ParsedEntity());
+	this->_parseBlock(file, parsed_servers.back(), line_counter);
+}
+
+void	Meta::_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & line_counter)
 {
 	std::string			line;
 	ft::splited_string	splited;
 	ft::splited_string	params;
 	std::string			keyword;
-	Location			def_loc;
+
+	ft::readConfFile(conf, line);
 
 	while (conf.good() && ft::trim(line) != "}")
 	{
-		ft::readConfFile(conf, line);
 		line_counter++;
 
 		if (line.empty())
+		{
+			ft::readConfFile(conf, line);
 			continue ;
+		}
 
 		splited = ft::splitHeader(line, SPACES);
 
@@ -119,29 +159,14 @@ void	Meta::_parseServerBlock(std::ifstream & conf, Server & server, size_t & lin
 			if (params.size() != 2 || params[1] != "{")
 				throw std::logic_error(std::string("unexpected line" + ft::num_to_string(line_counter) + ": " + line).c_str());
 
-			this->_parseLocationBlock(conf, server.locations[params[0]]);
+			this->_parseBlock(conf, entity.locations[params[0]], line_counter);
 		}
-		else if (keyword == "listen")
-		{
-			ft::splited_string	host_port = ft::split(params[0], ":");
-
-			server.host = host_port[0];
-			if (params.size() > 1)
-				server.port = host_port[1];
-		}
+		else
+			entity.params[keyword] = params;
+		
+		ft::readConfFile(conf, line);
 	}
 
 	if (!conf.good() && !conf.eof())
 		throw std::runtime_error(strerror(errno));
-
-	if (server.locations.empty())
-		throw std::logic_error("server must have at least 1 location");
-}
-
-void	Meta::_parseLocationBlock(std::ifstream & conf, Location & location, std::string & line, size_t & line_counter)
-{
-	while (line.find("}") == std::string::npos)
-	{
-		ft::readConfFile(conf, line);
-	}
 }

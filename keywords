@@ -1,6 +1,17 @@
-listen
+# only in outer block
+server
+
+# only in 'server' block
 server_name
+listen
+
+# only in 'location' block
+redirect
+
+# in any inner block
+location
 root
 indexes
-server
-location
+client_body_size
+allow_methods
+error_page
