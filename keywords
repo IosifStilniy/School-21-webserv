@@ -1,6 +1,3 @@
-# only in outer block
-server
-
 # only in 'server' block
 server_name
 listen
@@ -15,3 +12,4 @@ indexes
 client_body_size
 allow_methods
 error_page
+if_request_is_dir

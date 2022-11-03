@@ -19,11 +19,13 @@
 class Location
 {
 	private:
+	public:
 		std::string					root;
 		std::vector<std::string>	indexes;
 		std::vector<std::string>	methods;
 		std::string					redir;
 		std::string					e_is_dir;
+		std::map<int, std::string>	error_pages;
 		size_t						buf_size;
 
 	public:

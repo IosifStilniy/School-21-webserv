@@ -34,8 +34,9 @@ class Meta
 
 		struct ParsedEntity
 		{
-			std::map<std::string, std::vector<std::string> >	params;
-			std::map<std::string, ParsedEntity>					locations;
+			std::map<std::string, std::string>	params;
+			std::map<std::string, ParsedEntity>	locations;
+			std::map<int, std::string>			error_pages;
 		};
 
 	public:
@@ -45,9 +46,13 @@ class Meta
 		
 	
 	private:
-		void	_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & line_counter);
-		void	_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter);
-		void	_prepareServer(ParsedEntity & p_server, Server & server);
+		void				_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & line_counter);
+		void				_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter);
+		void				_prepareServer(ParsedEntity & p_server, Server & server);
+		void				_prepareLocation(ParsedEntity & p_server, ParsedEntity & p_location, Location & location);
+		std::string const &	_chooseSource(ParsedEntity & p_server, ParsedEntity & p_location, std::string const & param);
+
+		static std::vector<std::string>	_getAllMethods(void);
 };
 
 #endif

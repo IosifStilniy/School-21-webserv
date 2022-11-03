@@ -23,8 +23,6 @@ void	RequestCollector::Request::setValues(std::string const & fieldname, std::st
 	{
 		params = ft::split(*start, ";");
 
-		header_values_params &	new_value = this->options[fieldname].insert(std::make_pair(ft::trim(params[0]), header_values_params())).first->second;
-
 		for (ft::splited_string::const_iterator start = params.begin() + 1; start != params.end(); start++)
 		{
 			key_value = ft::split(*start, "=");
@@ -32,7 +30,7 @@ void	RequestCollector::Request::setValues(std::string const & fieldname, std::st
 			if (key_value.size() != 2)
 				continue ;
 
-			new_value.insert(std::make_pair(ft::trim(key_value[0]), ft::trim(key_value[1])));
+			this->options[fieldname][ft::trim(params[0])][ft::trim(key_value[0])] = ft::trim(key_value[1]);
 		}
 	}
 }

@@ -67,11 +67,52 @@ Meta::Meta(std::string const & conf_file)
 		this->_prepareServer(parsed_servers.front(), this->servers.back());
 		parsed_servers.pop();
 	}
-	
 }
 
 Meta::~Meta()
 {
+}
+
+std::string const &	Meta::_chooseSource(ParsedEntity & p_server, ParsedEntity & p_location, std::string const & param)
+{
+	if (p_location.params[param].empty())
+		return (p_server.params[param]);
+	return (p_location.params[param]);
+}
+
+std::vector<std::string>	Meta::_getAllMethods(void)
+{
+	std::vector<std::string>	methods;
+
+	methods.push_back("get");
+	methods.push_back("post");
+	methods.push_back("delete");
+
+	return (methods);
+}
+
+void	Meta::_prepareLocation(ParsedEntity & p_server, ParsedEntity & p_location, Location & location)
+{
+	location.root = ft::split(this->_chooseSource(p_server, p_location, "root"))[0];
+		
+	if (location.root.empty())
+		throw std::logic_error("location must have root");
+
+	location.indexes = ft::split(this->_chooseSource(p_server, p_location, "indexes"));
+	if (location.indexes.empty())
+		location.indexes.push_back("index.html");
+
+	location.methods = ft::split(this->_chooseSource(p_server, p_location, "allow_methods"));
+	if (location.methods.empty())
+		location.methods = Meta::_getAllMethods();
+
+	location.redir = ft::split(p_location.params["redirect"])[0];
+	location.e_is_dir = ft::split(this->_chooseSource(p_server, p_location, "if_request_is_dir"))[0];
+	location.buf_size = ft::removePrefixB(ft::split(this->_chooseSource(p_server, p_location, "client_body_size"))[0]);
+
+	location.error_pages = p_server.error_pages;
+	for (std::map<int, std::string>::const_iterator it = p_location.error_pages.begin(); it != p_location.error_pages.end(); it++)
+		location.error_pages[it->first] = it->second;
 }
 
 void	Meta::_prepareServer(ParsedEntity & p_server, Server & server)
@@ -79,12 +120,11 @@ void	Meta::_prepareServer(ParsedEntity & p_server, Server & server)
 	if (p_server.locations.empty())
 		throw std::logic_error("server must have at least 1 location");
 
-	if (!p_server.params["server_name"].empty())
-		server.server_name = p_server.params["server_name"][0];
+	server.server_names = ft::split(p_server.params["server_name"]);
 
 	if (!p_server.params["listen"].empty())
 	{
-		ft::splited_string	host_port = ft::splitHeader(p_server.params["listen"][0], ":");
+		ft::splited_string	host_port = ft::splitHeader(ft::split(p_server.params["listen"])[0], ":");
 
 		if (!host_port[0].empty())
 			server.host = host_port[0];
@@ -92,10 +132,8 @@ void	Meta::_prepareServer(ParsedEntity & p_server, Server & server)
 			server.port = htons(strtoul(host_port[1].c_str(), NULL, 10));
 	}
 
-	for (std::map<std::string, ParsedEntity>::const_iterator location = p_server.locations.begin(); location != p_server.locations.end(); location++)
-	{
-
-	}
+	for (std::map<std::string, ParsedEntity>::iterator it = p_server.locations.begin(); it != p_server.locations.end(); it++)
+		this->_prepareLocation(p_server, it->second, server.locations[it->first]);
 }
 
 void	Meta::_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter)
@@ -127,7 +165,7 @@ void	Meta::_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & lin
 {
 	std::string			line;
 	ft::splited_string	splited;
-	ft::splited_string	params;
+	std::string			params;
 	std::string			keyword;
 
 	ft::readConfFile(conf, line);
@@ -152,20 +190,34 @@ void	Meta::_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & lin
 		if (std::find(Meta::_keywords.begin(), Meta::_keywords.end(), keyword) == Meta::_keywords.end())
 			throw std::logic_error(std::string("unexpected line" + ft::num_to_string(line_counter) + ": " + line).c_str());
 
-		params = ft::split(splited[1]);
+		params = splited[1];
 
 		if (keyword == "location")
 		{
-			if (params.size() != 2 || params[1] != "{")
+			ft::splited_string	splited_loc = ft::split(params);
+
+			if (splited_loc.size() != 2 || splited_loc[1] != "{")
+				throw std::logic_error(std::string("line" + ft::num_to_string(line_counter) + ": location keyword line must be kind of 'location [path] {', that is").c_str());
+
+			this->_parseBlock(conf, entity.locations[splited_loc[0]], line_counter);
+		}
+		else if (keyword == "error_page")
+		{
+			ft::splited_string	splited_e_page = ft::split(params);
+
+			if (splited_e_page.size() < 2)
 				throw std::logic_error(std::string("unexpected line" + ft::num_to_string(line_counter) + ": " + line).c_str());
 
-			this->_parseBlock(conf, entity.locations[params[0]], line_counter);
+			entity.error_pages[strtol(splited_e_page[0].c_str(), NULL, 10)] = splited_e_page[1];
 		}
 		else
 			entity.params[keyword] = params;
 		
 		ft::readConfFile(conf, line);
 	}
+
+	if (conf.eof() && ft::trim(line) != "}")
+		throw std::logic_error("unexpected end of block: missing line '}'");
 
 	if (!conf.good() && !conf.eof())
 		throw std::runtime_error(strerror(errno));

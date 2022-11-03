@@ -169,4 +169,15 @@ namespace ft
 
 		line = ft::trim(line.substr(0, line.find('#')));
 	}
+
+	size_t	removePrefixB(std::string const & size)
+	{
+		char *	word;
+		size_t	num = strtoul(size.c_str(), &word, 10);
+		size_t	exp = std::string("kmgt").find(tolower(*word));
+
+		if (exp == std::string::npos)
+			return (num);
+		return (num * std::pow(2, 10 * (exp + 1)));
+	}
 };

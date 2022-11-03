@@ -11,7 +11,7 @@ class Server
 {
 	private:
 	public:
-		std::string							server_name;
+		std::vector<std::string>			server_names;
 		std::map<std::string, Location>		locations;
 		std::string							host;
 		size_t								port;

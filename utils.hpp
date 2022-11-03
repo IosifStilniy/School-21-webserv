@@ -8,6 +8,7 @@
 # include <string>
 # include <cctype>
 # include <cstring>
+# include <cmath>
 # include <fstream>
 
 # ifndef SPACES
@@ -39,6 +40,7 @@ namespace ft
 	splited_string	splitHeader(std::string const & str, std::string const & separators);
 	bool			isDirectory(std::string const & filename);
 	void			readConfFile(std::ifstream & conf_file, std::string & line);
+	size_t			removePrefixB(std::string const & size);
 
 	template <typename Number>
 	std::string	num_to_string(Number num)
