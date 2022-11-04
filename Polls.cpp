@@ -2,10 +2,12 @@
 #include <iostream>
 
 Polls::Polls(void)
+	: polls(nullptr), size(0), _capacity(0), _current(0), _ready(0)
 {
 }
 
-Polls::Polls(int socket, int flag): polls(new pollfd[2]), size(0), _capacity(2), _current(0), _ready(0)
+Polls::Polls(int socket, int flag)
+	: polls(new pollfd[2]), size(0), _capacity(2), _current(0), _ready(0)
 {
 	this->append(socket, flag);
 }
@@ -18,13 +20,17 @@ Polls::~Polls()
 void	Polls::_realloc(void)
 {
 	this->_capacity *= 2;
+	if (!this->_capacity)
+		this->_capacity = 2;
 
 	pollfd	*new_arr = new pollfd[this->_capacity];
 
 	for (size_t i = 0; i < this->size; i++)
 		new_arr[i] = this->polls[i];
 
-	delete [] this->polls;
+	if (this->polls)
+		delete [] this->polls;
+		
 	this->polls = new_arr;
 }
 
@@ -49,7 +55,7 @@ void	Polls::append(int socket, int flag)
 		this->_realloc();
 
 	if (socket < 0)
-		throw std::runtime_error(strerror(errno));
+		throw std::runtime_error(std::string("accept: ") + strerror(errno));
 
 	this->polls[this->size].fd = socket;
 	this->polls[this->size].events = flag;
@@ -70,6 +76,7 @@ void	Polls::poll(int timeout)
 {
 	this->_ready = ::poll(this->polls, this->size, timeout);
 	this->clear();
+	this->_current = 0;
 }
 
 int		Polls::getNextSocket(void)
@@ -83,9 +90,6 @@ int		Polls::getNextSocket(void)
 		return (this->polls[this->_current++].fd);
 	}
 
-	if (!this->_ready)
-		this->_current = 0;
-
 	return (0);
 }
 
@@ -96,6 +100,18 @@ size_t	Polls::getIndex(int socket)	const
 			return (i);
 	
 	return (-1);
+}
+
+bool	Polls::isListenSocket(int socket)	const
+{
+	return (!this->getIndex(socket));
+}
+
+int	Polls::getListenSocket()	const
+{
+	if (!this->size)
+		return (-1);
+	return (this->polls[0].fd);
 }
 
 void	Polls::clear(void)

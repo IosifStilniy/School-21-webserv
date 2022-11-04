@@ -16,7 +16,6 @@ class Polls
 		size_t	_current;
 		size_t	_ready;
 
-		Polls(void);
 
 		void	_realloc(void);
 		void	_erase(size_t i);
@@ -25,6 +24,7 @@ class Polls
 		pollfd *	polls;
 		size_t		size;
 		
+		Polls(void);
 		Polls(int socket, int flag);
 		~Polls();
 
@@ -36,6 +36,8 @@ class Polls
 		void		poll(int timeout = -1);
 		int			getNextSocket(void);
 		size_t		getIndex(int socket)			const;
+		bool		isListenSocket(int socket)		const;
+		int			getListenSocket()				const;
 		void		clear(void);
 };
 

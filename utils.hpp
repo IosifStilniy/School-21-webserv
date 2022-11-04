@@ -19,25 +19,24 @@
 #  define QUOTE_CHARS "\"\"''()"
 # endif
 
-namespace _ft
-{
-	typedef struct s_quots
-	{
-		std::string::const_iterator	begin;
-		std::string::const_iterator	end;
-	}	t_quots;
-
-	std::queue<t_quots>	fillQuots(std::string const & str, std::string quots_string = QUOTE_CHARS);
-}
-
 namespace ft
 {
-	typedef	std::vector<std::string>	splited_string;
+	namespace
+	{
+		typedef struct s_quots
+		{
+			std::string::const_iterator	begin;
+			std::string::const_iterator	end;
+		}	t_quots;
+	}
+
+	typedef	std::vector<std::string>				splited_string;
+	typedef	std::pair<std::string, std::string>		key_value_type;
 
 	std::string		trim(std::string const & str);
 	splited_string	split(std::string const & str, std::string delimiters = SPACES, bool ignore_quotes = false);
 	std::string		toLower(std::string const & str);
-	splited_string	splitHeader(std::string const & str, std::string const & separators);
+	key_value_type	splitHeader(std::string const & str, std::string const & separators);
 	bool			isDirectory(std::string const & filename);
 	void			readConfFile(std::ifstream & conf_file, std::string & line);
 	size_t			removePrefixB(std::string const & size);
@@ -62,12 +61,15 @@ namespace ft
 	};
 
 	template <typename FileStream>
-	void	openFile(FileStream & file, std::string const & filename)
+	void	openFile(FileStream & file, std::string const & filename, std::ios_base::openmode openmode = std::ios_base::out)
 	{
 		if (ft::isDirectory(filename))
 			throw std::runtime_error(filename + ": " + strerror(errno));
 
-		file.open(filename);
+		if (file.is_open())
+			file.close();
+
+		file.open(filename, openmode);
 
 		if (!file.good())
 		{

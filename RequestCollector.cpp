@@ -9,15 +9,15 @@ RequestCollector::Request::Request(void)
 	chunks.push(bytes_type());
 }
 
-void	RequestCollector::Request::setValues(std::string const & fieldname, std::string const & values_string)
+void	RequestCollector::Request::setValues(ft::key_value_type const & field_values)
 {
-	ft::splited_string	splited_values = ft::split(values_string, ",");
+	ft::splited_string	splited_values = ft::split(field_values.second, ",");
 
 	if (splited_values.empty())
 		return ;
 
 	ft::splited_string	params;
-	ft::splited_string	key_value;
+	ft::key_value_type	key_value;
 
 	for (ft::splited_string::const_iterator start = splited_values.begin(); start != splited_values.end(); start++)
 	{
@@ -25,12 +25,8 @@ void	RequestCollector::Request::setValues(std::string const & fieldname, std::st
 
 		for (ft::splited_string::const_iterator start = params.begin() + 1; start != params.end(); start++)
 		{
-			key_value = ft::split(*start, "=");
-
-			if (key_value.size() != 2)
-				continue ;
-
-			this->options[fieldname][ft::trim(params[0])][ft::trim(key_value[0])] = ft::trim(key_value[1]);
+			key_value = ft::splitHeader(*start, "=");
+			this->options[field_values.first][ft::trim(params[0])][key_value.first] = key_value.second;
 		}
 	}
 }
@@ -53,15 +49,12 @@ void	RequestCollector::Request::parseHeader(void)
 	ft::splited_string	splited = ft::split(std::string(this->chunks.front().begin(), this->chunks.front().end()), "\n");
 	ft::splited_string	splited_line = ft::split(splited[0]);
 
-	this->setValues("method", splited_line[0]);
-	this->setValues("content-path", splited_line[1]);
-	this->setValues("http-version", splited_line[2]);
+	this->setValues(std::make_pair("method", splited_line[0]));
+	this->setValues(std::make_pair("content-path", splited_line[1]));
+	this->setValues(std::make_pair("http-version", splited_line[2]));
 
 	for (ft::splited_string::iterator start = splited.begin() + 1; start != splited.end(); start++)
-	{
-		splited_line = ft::splitHeader(*start, ":");
-		this->setValues(ft::trim(splited_line[0]), splited_line[1]);
-	}
+		this->setValues(ft::splitHeader(*start, ":"));
 
 	header_fields::iterator	length = this->options.find("Content-Length");
 
@@ -125,7 +118,7 @@ bool	RequestCollector::_transferEnded(byte_type * & msg_start, size_t dstnc)
 
 	dstnc = this->_ref_eof.size() - tail.size();
 	ref.append(msg_start, msg_start + dstnc);
-	result = !ref.compare(this->_ref_eof);
+	result = (ref == this->_ref_eof);
 
 	if (result)
 		msg_start += ref.size() - tail.size();
@@ -195,7 +188,7 @@ bool	RequestCollector::_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start
 
 	end.append(std::string(msg_start, msg_start + dstnc));
 
-	if (end.compare(this->_ref_eof))
+	if (end != this->_ref_eof)
 		return (false);
 
 	msg_start += dstnc;

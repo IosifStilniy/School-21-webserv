@@ -1,5 +1,5 @@
 # only in 'server' block
-server_name
+server_names
 listen
 
 # only in 'location' block

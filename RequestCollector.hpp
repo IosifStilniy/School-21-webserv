@@ -55,7 +55,7 @@ class RequestCollector
 				bool				isFullyReceived(void);
 				std::string const &	getOnlyValue(std::string const & field);
 				std::string const &	getOnlyValue(header_fields::iterator field);
-				void				setValues(std::string const & fieldname, std::string const & values);
+				void				setValues(ft::key_value_type const & key_value);
 
 				void	printOptions(header_values_params const & options, int indent = 0);
 

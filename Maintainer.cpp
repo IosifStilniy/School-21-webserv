@@ -67,7 +67,7 @@ Maintainer::~Maintainer()
 
 void	Maintainer::_badResponse(int status, Response & response)
 {
-	response.status = 404;
+	response.status = status;
 
 	if (response.in.is_open())
 		response.in.close();
@@ -132,7 +132,7 @@ void	Maintainer::_dispatchRequest(request_type & request, Response & response)
 	int	i = 0;
 
 	for (; i < Maintainer::_methods_names.size(); i++)
-		if (!Maintainer::_methods_names[i].compare(ft::toLower(request.getOnlyValue("method"))))
+		if (Maintainer::_methods_names[i] == ft::toLower(request.getOnlyValue("method")))
 			break ;
 
 	PTR_FUNC(i)(request, response);

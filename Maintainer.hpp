@@ -61,6 +61,7 @@ class Maintainer
 		void	_readFile(std::string const & file_path, Response & response);
 
 		void	_dispatchRequest(request_type & request, Response & response);
+		
 		void	_get(request_type & request, Response & response);
 		void	_post(request_type & request, Response & response);
 		void	_delete(request_type & request, Response & response);
