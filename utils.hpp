@@ -61,9 +61,9 @@ namespace ft
 	};
 
 	template <typename FileStream>
-	void	openFile(FileStream & file, std::string const & filename, std::ios_base::openmode openmode = std::ios_base::out)
+	void	openFile(FileStream & file, std::string const & filename, std::ios_base::openmode openmode = std::ios_base::in)
 	{
-		if (ft::isDirectory(filename))
+		if (isDirectory(filename))
 			throw std::runtime_error(filename + ": " + strerror(errno));
 
 		if (file.is_open())
@@ -78,6 +78,35 @@ namespace ft
 				
 			throw std::runtime_error(filename + ": " + strerror(errno));
 		}
+	}
+
+	template <typename SrcContainer, typename SearchContainer, typename ReplContainer>
+	SrcContainer	replaceBytes(SrcContainer const & src, SearchContainer const & what_replace, ReplContainer const & replace_with)
+	{
+		typedef typename std::enable_if<std::is_same<typename SrcContainer::value_type, typename SearchContainer::value_type>::value, typename SrcContainer::value_type>::type		_check1;
+		typedef typename std::enable_if<std::is_same<typename SrcContainer::value_type, typename ReplContainer::value_type>::value, typename SrcContainer::value_type>::type		_check2;
+
+		if (what_replace.empty())
+			return (src);
+
+		SrcContainer							replaced_sequence;
+		typename SrcContainer::const_iterator	left = src.begin();
+		typename SrcContainer::const_iterator	right = std::search(left, src.end(), what_replace.begin(), what_replace.end());
+
+		while (left != src.end())
+		{
+			replaced_sequence.insert(replaced_sequence.end(), left, right);
+
+			if (right != src.end())
+				replaced_sequence.insert(replaced_sequence.end(), replace_with.begin(), replace_with.end());
+			else
+				return (replaced_sequence);
+
+			left = right + what_replace.size();
+			right = std::search(left, src.end(), what_replace.begin(), what_replace.end());
+		}
+		
+		return (replaced_sequence);
 	}
 }
 

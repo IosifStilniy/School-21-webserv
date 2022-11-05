@@ -122,6 +122,9 @@ namespace ft
 
 		if (begin != end)
 			splited.push_back(std::string(begin, end));
+		
+		if (splited.empty())
+			splited.push_back(std::string());
 
 		return (splited);
 	}

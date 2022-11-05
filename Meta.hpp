@@ -50,15 +50,16 @@ class Meta
 		Meta(std::ifstream & conf);
 		~Meta();
 		
+		static const std::map<int, std::string>	statuses;
+
 		void	configurateServers(std::ifstream & conf);
 
 	private:
-		void				_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & line_counter);
-		void				_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter);
-		void				_prepareServer(ParsedEntity & p_server, Server::Settings & server);
-		void				_prepareLocation(ParsedEntity & p_server, ParsedEntity & p_location, Server::Location & location);
-		std::string const &	_chooseSource(ParsedEntity & p_server, ParsedEntity & p_location, std::string const & param);
-		void				_bindErrorPages(std::string const & params, std::map<int, std::string> & error_pages);
+		void	_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & line_counter);
+		void	_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter);
+		void	_prepareServer(ParsedEntity & p_server, Server::Settings & server);
+		void	_prepareLocation(ParsedEntity & p_location, Server::Location & location);
+		void	_bindErrorPages(std::string const & params, std::map<int, std::string> & error_pages);
 
 		static std::vector<std::string>	_getAllMethods(void);
 };

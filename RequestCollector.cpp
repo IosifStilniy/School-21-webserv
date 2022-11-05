@@ -13,7 +13,7 @@ void	RequestCollector::Request::setValues(ft::key_value_type const & field_value
 {
 	ft::splited_string	splited_values = ft::split(field_values.second, ",");
 
-	if (splited_values.empty())
+	if (splited_values[0].empty())
 		return ;
 
 	ft::splited_string	params;

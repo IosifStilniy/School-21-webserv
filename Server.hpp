@@ -40,6 +40,7 @@ class Server
 		{
 			std::vector<std::string>	server_names;
 			locations_type				locations;
+			Location					def_settings;
 			hosts_ports_type			host_port;
 		};
 	

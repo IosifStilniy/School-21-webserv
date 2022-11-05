@@ -1,12 +1,13 @@
 #include "Maintainer.hpp"
 
 Maintainer::Response::Response(void)
-	: chunks(), options(), status(0)
+	: chunks(), options(), status(0), inited(false), settings(nullptr), path_location(std::make_pair("", nullptr))
 {
 }
 
-Maintainer::Response::Response(const Response & src)
+void	Maintainer::Response::readFile(void)
 {
+	this->readFile(this->mounted_path);
 }
 
 void	Maintainer::Response::readFile(std::string const & file_path)
@@ -38,7 +39,173 @@ void	Maintainer::Response::readFile(std::string const & file_path)
 		chunks.push(bytes_type(this->spliter, this->end));
 
 	if (this->in.eof())
+	{
 		this->in.close();
+		this->in.clear();
+	}
+}
+
+std::string const &	Maintainer::Response::chooseErrorPageSource(void)
+{
+	if (this->path_location.second->e_is_dir.empty())
+		return (this->settings->def_settings.e_is_dir);
+	return (this->path_location.second->e_is_dir);
+}
+
+std::string const &	Maintainer::Response::chooseErrorPageSource(int status)
+{
+	if (this->path_location.second->error_pages[status].empty())
+		return (this->settings->def_settings.error_pages[status]);
+	return (this->path_location.second->error_pages[status]);
+}
+
+void	Maintainer::Response::badResponse(int status, std::string error_page)
+{
+	this->status = status;
+
+	if (this->in.is_open())
+		this->in.close();
+	
+	this->in.clear();
+	
+	while (!this->chunks.empty())
+		this->chunks.pop();
+
+	if (error_page.empty())
+		error_page = "def_err.html";
+
+	this->readFile(error_page);
+
+	if (error_page == "def_err.html")
+		this->chunks.front() = ft::replaceBytes(this->chunks.front(), std::string("STATUS_CODE"), ft::num_to_string(status));
+
+	this->options["Content-Length"] = ft::num_to_string(this->chunks.front().size());
+	this->options["Content-Type"] = "text/html";
+}
+
+void	Maintainer::Response::_getSettings(RequestCollector::header_values const & host, std::vector<Server::Settings> & settings_collection)
+{
+	for (std::vector<Server::Settings>::iterator start = settings_collection.begin(); start != settings_collection.end(); start++)
+	{
+		if (start->server_names.empty() && host.empty())
+			;
+		else if (std::find(start->server_names.begin(), start->server_names.end(), host.begin()->first) == start->server_names.end())
+			continue ;
+		
+		this->settings = &*start;
+		return ;
+	}
+}
+
+void	Maintainer::Response::_getLocation(Server::locations_type & locations, std::string const & path)
+{
+	std::string 		loc_path;
+	Server::Location *	founded = nullptr;
+	size_t				length = 0;
+
+	for (Server::locations_type::iterator start = locations.begin(); start != locations.end(); start++)
+	{
+		if (path.find(start->first) != 0 || length > start->first.size())
+			continue ;
+		
+		loc_path = start->first;
+		founded = &start->second;
+		length = start->first.size();
+	}
+
+	if (!founded || founded->locations.empty())
+	{
+		this->path_location = std::make_pair(loc_path, founded);
+		return ;
+	}
+
+	this->_getLocation(founded->locations, path);
+
+	if (this->path_location.second)
+		return ;
+	
+	this->path_location = std::make_pair(loc_path, founded);
+
+	std::string	root = founded->root;
+
+	if (root.empty())
+		root = this->settings->def_settings.root;
+
+	this->mounted_path = ft::replaceBytes(path, loc_path, root);
+}
+
+void	Maintainer::Response::_listIndexes(void)
+{
+	std::ifstream						check;
+	std::vector<std::string> const *	indexes = &this->path_location.second->indexes;
+
+	if (indexes->empty())
+		indexes = &this->settings->def_settings.indexes;
+
+	for (std::vector<std::string>::const_iterator index = indexes->begin(); index != indexes->end(); index++)
+	{
+		if (ft::isDirectory(mounted_path + *index))
+			continue ;
+
+		check.open(mounted_path + *index);
+		check.close();
+		
+		if (!check.good())
+			continue ;
+
+		this->mounted_path.append(*index);
+
+		return ;
+	}
+
+	this->badResponse(404, this->chooseErrorPageSource(404));
+}
+
+void	Maintainer::Response::_checkMountedPath()
+{
+	if (!ft::isDirectory(this->mounted_path))
+	{
+		std::ifstream	check(this->mounted_path);
+
+		check.close();
+
+		if (check.good())
+			return ;
+		
+		this->badResponse(404, this->chooseErrorPageSource(404));
+
+		return ;
+	}
+
+	if (this->path_location.second->indexes.empty() && this->settings->def_settings.indexes.empty())
+	{
+		this->badResponse(403, this->chooseErrorPageSource());
+		return ;
+	}
+
+	this->_listIndexes();
+}
+
+void	Maintainer::Response::init(request_type & request, std::vector<Server::Settings> & settings_collection)
+{
+	this->inited = true;
+
+	this->_getSettings(request.options["Host"], settings_collection);
+	if (!this->settings)
+	{
+		this->badResponse(404);
+		return ;
+	}
+
+	this->_getLocation(this->settings->locations, request.getOnlyValue("content-path"));
+	if (!this->path_location.second)
+	{
+		this->badResponse(404, this->settings->def_settings.error_pages[404]);
+		return ;
+	}
+
+	if (request.getOnlyValue("method") == "get")
+		this->_checkMountedPath();
 }
 
 static std::vector<std::string>	methodsNameInit(void)
@@ -54,7 +221,8 @@ static std::vector<std::string>	methodsNameInit(void)
 
 const std::vector<std::string> Maintainer::_methods_names = methodsNameInit();
 
-Maintainer::Maintainer(void)
+Maintainer::Maintainer(std::vector<Server::Settings> & settings)
+	: _settings(settings)
 {
 	this->_methods[0] = &Maintainer::_get;
 	this->_methods[1] = &Maintainer::_post;
@@ -65,27 +233,12 @@ Maintainer::~Maintainer()
 {
 }
 
-void	Maintainer::_badResponse(int status, Response & response)
-{
-	response.status = status;
-
-	if (response.in.is_open())
-		response.in.close();
-	
-	while (!response.chunks.empty())
-		response.chunks.pop();
-	
-	response.readFile("root/" + ft::num_to_string(status) + ".html");
-	response.options["Content-Length"] = ft::num_to_string(response.chunks.front().size());
-	response.options["Content-Type"] = "text/html";
-}
-
 void	Maintainer::_get(request_type & request, Response & response)
 {
-	if (request.getOnlyValue("content-path").back() == '/')
-		response.readFile(request.getOnlyValue("content-path") + "index.html");
-	else
-		response.readFile(request.getOnlyValue("content-path"));
+	if (!response.inited)
+		response.init(request, this->_settings);
+
+	response.readFile();
 	
 	if (response.status)
 		return ;
@@ -94,7 +247,7 @@ void	Maintainer::_get(request_type & request, Response & response)
 
 	if (!response.in.good() && !response.in.eof())
 	{
-		this->_badResponse(404, response);
+		response.badResponse(404, response.chooseErrorPageSource(404));
 		return ;
 	}
 
@@ -114,7 +267,6 @@ void	Maintainer::_get(request_type & request, Response & response)
 
 	response.options["Content-Length"] = ft::num_to_string(length);
 	response.status = 200;
-
 }
 
 void	Maintainer::_post(request_type & request, Response & response)
