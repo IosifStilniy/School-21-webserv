@@ -13,5 +13,6 @@
 # include "RequestCollector.hpp"
 # include "Maintainer.hpp"
 # include "ResponseHandler.hpp"
+# include "Server.hpp"
 
 #endif

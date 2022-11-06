@@ -5,6 +5,8 @@
 
 # include "Maintainer.hpp"
 
+# include "utils.hpp"
+
 # ifndef NL
 #  define NL "\r\n"
 # endif
@@ -13,19 +15,19 @@ class ResponseHandler
 {
 	private:
 		typedef	Maintainer::response_queue	response_queue;
-		typedef	Maintainer::Response		response_type;
-		typedef	Maintainer::header_fields	header_fields;
-		typedef Maintainer::bytes_type		bytes_type;
-
-		static const std::map<int, std::string>	_statuses;
+		typedef	Response					response_type;
+		typedef	Response::header_fields		header_fields;
+		typedef ByteTypes::bytes_type		bytes_type;
 
 		std::string	_formHeader(header_fields & options, int status);
+
+		static std::map<int, std::string>	_statuses;
 
 	public:
 		ResponseHandler(void);
 		~ResponseHandler();
 
-		void	giveResponse(Maintainer::response_queue & resp_queue, int socket);
+		void	giveResponse(response_queue & resp_queue, int socket);
 };
 
 #endif

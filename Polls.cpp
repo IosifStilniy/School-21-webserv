@@ -2,12 +2,12 @@
 #include <iostream>
 
 Polls::Polls(void)
-	: polls(nullptr), size(0), _capacity(0), _current(0), _ready(0)
+	: _capacity(0), _current(0), _ready(0), polls(nullptr), size(0)
 {
 }
 
 Polls::Polls(int socket, int flag)
-	: polls(new pollfd[2]), size(0), _capacity(2), _current(0), _ready(0)
+	: _capacity(2), _current(0), _ready(0), polls(new pollfd[2]), size(0)
 {
 	this->append(socket, flag);
 }

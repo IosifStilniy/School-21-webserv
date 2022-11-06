@@ -1,58 +1,12 @@
 #include "Meta.hpp"
 #include <iostream>
 
-static std::vector<std::string>	_initKeywords(void)
+static std::string	_initKeywords(std::string const & line)
 {
-	std::ifstream	keywords_file;
-
-	ft::openFile(keywords_file, "keywords");
-
-	std::vector<std::string>	keywords;
-	std::string					line;
-
-	while (keywords_file.good() && !keywords_file.eof())
-	{
-		ft::readConfFile(keywords_file, line);
-
-		if (line.empty())
-			continue ;
-		
-		keywords.push_back(line);
-	}
-	
-	return (keywords);
+	return (line);
 }
 
-static std::map<int, std::string>	statusesInit(void)
-{
-	std::ifstream				status_file;
-
-	ft::openFile(status_file, "statuses");
-
-	std::string					line;
-	ft::splited_string			splited;
-	std::map<int, std::string>	statuses;
-
-	while (!status_file.eof())
-	{
-		ft::readConfFile(status_file, line);
-
-		if (line.empty())
-			continue ;
-
-		splited = ft::split(line, "\t", true);
-
-		if (splited.size() != 2)
-			continue ;
-
-		statuses.insert(std::make_pair(atoi(splited[0].c_str()), ft::trim(splited[1])));
-	}
-	
-	return (statuses);
-}
-
-const std::vector<std::string>		Meta::_keywords = _initKeywords();
-const std::map<int, std::string>	Meta::statuses = statusesInit();
+std::vector<std::string>	Meta::_keywords = ft::containerazeConfFile<std::vector<std::string> >("keywords", &_initKeywords);
 
 Meta::Meta(void)
 	: proto_num(getprotobyname("tcp")->p_proto)
@@ -131,7 +85,7 @@ void	Meta::_bindErrorPages(std::string const & params, std::map<int, std::string
 		check.close();
 }
 
-void	Meta::_prepareLocation(ParsedEntity & p_location, Server::Location & location)
+void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 {
 	location.root = ft::split(p_location.params["root"]).back();
 
@@ -184,12 +138,20 @@ void	Meta::_prepareServer(ParsedEntity & p_server, Server::Settings & server)
 	}
 	
 	this->_prepareLocation(p_server, server.def_settings);
+	this->_checkLocations(server.def_settings, server.def_settings.locations);
+}
 
-	for (std::map<std::string, ParsedEntity>::iterator it = p_server.locations.begin(); it != p_server.locations.end(); it++)
+void	Meta::_checkLocations(Location const & def_loc, Server::locations_type const & locations)
+{
+	bool	def_root_not_exist = (def_loc.root.empty());
+
+	for (Server::locations_type::const_iterator it = locations.begin(); it != locations.end(); it++)
 	{
-		this->_prepareLocation(it->second, server.locations[it->first]);
-		if (server.locations[it->first].root.empty() && server.def_settings.root.empty())
-			throw std::logic_error(it->first + ": location must have root");
+		if (it->second.root.empty() && def_root_not_exist)
+			throw std::logic_error("location '" + it->first + "': location must have root");
+		
+		if (!it->second.locations.empty())
+			this->_checkLocations(def_loc, it->second.locations);
 	}
 }
 
@@ -212,7 +174,7 @@ void	Meta::_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed
 		return ;
 	
 	if (srv != splited.begin() || splited.size() != 2 || splited[1] != "{")
-		std::logic_error("line " + ft::num_to_string(line_counter) + ": server keyword line must be kind of 'server {', that is");
+		THROW_UNEXP_LINE(line_counter, line, ": server keyword line must be kind of 'server {', that is");
 
 	parsed_servers.push(ParsedEntity());
 	this->_parseBlock(file, parsed_servers.back(), line_counter);
@@ -236,30 +198,30 @@ void	Meta::_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & lin
 		}
 
 		if (line.find(";") != std::string::npos)
-			throw std::logic_error(std::string("unexpected line" + ft::num_to_string(line_counter) + ": " + line + ": ';' not allowed").c_str());
+			THROW_UNEXP_LINE(line_counter, line, ": ';' not allowed");
 
 		key_params = ft::splitHeader(line, SPACES);
 
 		if (key_params.second.empty())
-			throw std::logic_error(std::string("unexpected line" + ft::num_to_string(line_counter) + ": " + line + ": keywords must be followed by parameters").c_str());
+			THROW_UNEXP_LINE(line_counter, line, ": keywords must be followed by parameters");
 
 		if (std::find(Meta::_keywords.begin(), Meta::_keywords.end(), key_params.first) == Meta::_keywords.end())
-			throw std::logic_error(std::string("unexpected line" + ft::num_to_string(line_counter) + ": " + line + ": unknown keyword").c_str());
+			THROW_UNEXP_LINE(line_counter, line, ": unknown keyword");
 
 		if (key_params.first == "location")
 		{
 			ft::splited_string	splited_loc = ft::split(key_params.second);
 
 			if (splited_loc.size() != 2 || splited_loc[1] != "{")
-				throw std::logic_error(std::string("line" + ft::num_to_string(line_counter) + ": location keyword line must be kind of 'location /[path] {', that is").c_str());
+				THROW_UNEXP_LINE(line_counter, line, ": location keyword line must be kind of 'location /[path] {', that is");
 			
 			if (*splited_loc[0].begin() != '/' || *(splited_loc[0].end() - 1) != '/')
-				throw std::logic_error(std::string("line" + ft::num_to_string(line_counter) + ": path must start with /").c_str());
+				THROW_UNEXP_LINE(line_counter, line, ": path must start with /");
 
 			this->_parseBlock(conf, entity.locations[splited_loc[0]], line_counter);
 		}
 		else
-			entity.params[key_params.first].append(key_params.second);
+			entity.params[key_params.first].append(" " + key_params.second);
 		
 		ft::readConfFile(conf, line);
 	}

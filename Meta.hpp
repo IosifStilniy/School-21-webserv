@@ -28,6 +28,10 @@
 #  define DEF_BACKLOG 32
 # endif
 
+# ifndef THROW_UNEXP_LINE
+#  define THROW_UNEXP_LINE(line_num, line, text) (throw std::logic_error(std::string("unexpected line " + ft::num_to_string(line_num) + ": " + line + text).c_str()))
+# endif
+
 class Meta
 {
 	public:
@@ -37,7 +41,7 @@ class Meta
 		servers_type	servers;
 
 	private:
-		static const std::vector<std::string>	_keywords;
+		static std::vector<std::string>	_keywords;
 
 		struct ParsedEntity
 		{
@@ -49,8 +53,6 @@ class Meta
 		Meta(void);
 		Meta(std::ifstream & conf);
 		~Meta();
-		
-		static const std::map<int, std::string>	statuses;
 
 		void	configurateServers(std::ifstream & conf);
 
@@ -58,10 +60,13 @@ class Meta
 		void	_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & line_counter);
 		void	_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter);
 		void	_prepareServer(ParsedEntity & p_server, Server::Settings & server);
-		void	_prepareLocation(ParsedEntity & p_location, Server::Location & location);
+		void	_prepareLocation(ParsedEntity & p_location, Location & location);
+		void	_checkLocations(Location const & def_loc, Server::locations_type const & locations);
 		void	_bindErrorPages(std::string const & params, std::map<int, std::string> & error_pages);
 
 		static std::vector<std::string>	_getAllMethods(void);
+
+		static void	_initPath(std::string const & prog_name);
 };
 
 #endif

@@ -27,7 +27,6 @@ void	Server::initialize(std::string const & host_port, int proto_num)
 		this->backlog = std::numeric_limits<int>::max();
 
 	int			reuse_option = 1;
-	socklen_t 	len;
 	sockaddr_in	server_addr;
 
 	this->polls.append(socket(PF_INET, SOCK_STREAM, proto_num), POLLIN);

@@ -10,6 +10,9 @@
 # include <cstring>
 # include <cmath>
 # include <fstream>
+# include <iostream>
+
+# include "typedefs.hpp"
 
 # ifndef SPACES
 #  define SPACES " \t\n\v\f\r"
@@ -63,35 +66,37 @@ namespace ft
 	template <typename FileStream>
 	void	openFile(FileStream & file, std::string const & filename, std::ios_base::openmode openmode = std::ios_base::in)
 	{
-		if (isDirectory(filename))
-			throw std::runtime_error(filename + ": " + strerror(errno));
-
 		if (file.is_open())
 			file.close();
-
+		
 		file.open(filename, openmode);
-
 		if (!file.good())
 		{
 			if (file.is_open())
 				file.close();
-				
+
 			throw std::runtime_error(filename + ": " + strerror(errno));
 		}
+		
+		if ((openmode & std::ios_base::in) != std::ios_base::in)
+			return ;
+
+		if (isDirectory(filename))
+			throw std::runtime_error(filename + ": " + strerror(errno));
 	}
 
 	template <typename SrcContainer, typename SearchContainer, typename ReplContainer>
 	SrcContainer	replaceBytes(SrcContainer const & src, SearchContainer const & what_replace, ReplContainer const & replace_with)
 	{
-		typedef typename std::enable_if<std::is_same<typename SrcContainer::value_type, typename SearchContainer::value_type>::value, typename SrcContainer::value_type>::type		_check1;
-		typedef typename std::enable_if<std::is_same<typename SrcContainer::value_type, typename ReplContainer::value_type>::value, typename SrcContainer::value_type>::type		_check2;
+		typedef typename std::enable_if<std::is_same<typename SrcContainer::value_type, typename SearchContainer::value_type>::value, SrcContainer>::type	_SrcContainer;
+		typedef typename std::enable_if<std::is_same<typename SrcContainer::value_type, typename ReplContainer::value_type>::value, _SrcContainer>::type	__SrcContainer;
 
 		if (what_replace.empty())
 			return (src);
 
-		SrcContainer							replaced_sequence;
-		typename SrcContainer::const_iterator	left = src.begin();
-		typename SrcContainer::const_iterator	right = std::search(left, src.end(), what_replace.begin(), what_replace.end());
+		__SrcContainer							replaced_sequence;
+		typename __SrcContainer::const_iterator	left = src.begin();
+		typename __SrcContainer::const_iterator	right = std::search(left, src.end(), what_replace.begin(), what_replace.end());
 
 		while (left != src.end())
 		{
@@ -107,6 +112,29 @@ namespace ft
 		}
 		
 		return (replaced_sequence);
+	}
+
+	template <typename Container, class Func>
+	Container	containerazeConfFile(std::string const & filename, Func func)
+	{
+		std::ifstream	file;
+
+		openFile(file, ft::path + filename);
+
+		Container 	cont;
+		std::string	line;
+
+		while (file.good())
+		{
+			readConfFile(file, line);
+
+			if (line.empty())
+				continue ;
+
+			cont.insert(cont.end(), func(line));
+		}
+
+		return (cont);
 	}
 }
 

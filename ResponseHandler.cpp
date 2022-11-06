@@ -1,34 +1,13 @@
 #include "ResponseHandler.hpp"
 
-static std::map<int, std::string>	statusesInit(void)
+static std::pair<const int, std::string>	statusesInit(std::string const & line)
 {
-	std::ifstream				status_file;
+	ft::key_value_type	k_v = ft::splitHeader(line, "\t");
 
-	ft::openFile(status_file, "statuses");
-
-	std::string					line;
-	ft::splited_string			splited;
-	std::map<int, std::string>	statuses;
-
-	while (!status_file.eof())
-	{
-		ft::readConfFile(status_file, line);
-
-		if (line.empty())
-			continue ;
-
-		splited = ft::split(line, "\t", true);
-
-		if (splited.size() != 2)
-			continue ;
-
-		statuses.insert(std::make_pair(atoi(splited[0].c_str()), ft::trim(splited[1])));
-	}
-	
-	return (statuses);
+	return (std::make_pair(strtoul(k_v.first.c_str(), NULL, 10), ft::trim(k_v.second)));
 }
 
-const std::map<int, std::string>	ResponseHandler::_statuses = statusesInit();
+std::map<int, std::string>	ResponseHandler::_statuses = ft::containerazeConfFile<std::map<int, std::string> >("statuses", &statusesInit);
 
 ResponseHandler::ResponseHandler(void)
 {

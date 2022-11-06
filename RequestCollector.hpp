@@ -13,6 +13,9 @@
 
 # include "utils.hpp"
 
+# include "typedefs.hpp"
+# include "Request.hpp"
+
 # ifndef KB
 #  define KB(x) (x * 1024)
 # endif
@@ -32,51 +35,13 @@
 class RequestCollector
 {
 	public:
-		typedef char										byte_type;
-		typedef	std::vector<byte_type>						bytes_type;
-		typedef std::queue<bytes_type>						chunks_type;
-		typedef bytes_type::const_iterator					bytes_iterator;
+		typedef ByteTypes::byte_type						byte_type;
+		typedef	ByteTypes::bytes_type						bytes_type;
+		typedef ByteTypes::chunks_type						chunks_type;
+		typedef ByteTypes::bytes_iterator					bytes_iterator;
 		typedef std::map<std::string, std::string>			header_values_params;
 		typedef std::map<std::string, header_values_params>	header_values;
 		typedef std::map<std::string, header_values>		header_fields;
-
-		struct Request
-		{
-			chunks_type		chunks;
-			header_fields	options;
-			size_t			content_length;
-			header_values	transfer_encoding;
-			bool			is_ready;
-
-			Request(void);
-
-			public:
-				void				parseHeader(void);
-				bool				isFullyReceived(void);
-				std::string const &	getOnlyValue(std::string const & field);
-				std::string const &	getOnlyValue(header_fields::iterator field);
-				void				setValues(ft::key_value_type const & key_value);
-
-				void	printOptions(header_values_params const & options, int indent = 0);
-
-				template <typename T>
-				void				printOptions(std::map<std::string, T> const & options, int indent = 0)
-				{
-					for (typename std::map<std::string, T>::const_iterator start = options.begin(); start != options.end(); start++)
-					{
-						std::cout.width(indent);
-						std::cout << "";
-						std::cout << start->first;
-						if (start->second.size())
-						{
-							std::cout << ": " << std::endl;
-							printOptions(start->second, indent + 4);
-						}
-						else
-							std::cout << ";" << std::endl;
-					}
-				};
-		};
 
 		typedef std::queue<Request>				request_queue;
 		typedef	std::map<int, request_queue>	socket_map;

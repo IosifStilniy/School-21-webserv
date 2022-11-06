@@ -1,15 +1,15 @@
-# only in 'server' block
-server_names
+#'server' scope only
 listen
+server_names
 
-# only in 'location' block
+#'location' scope only
 redirect
 
-# in any inner block
-location
+#any inner scope
 root
 indexes
-client_body_size
+location
 allow_methods
 error_page
 if_request_is_dir
+client_body_size

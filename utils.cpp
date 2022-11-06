@@ -68,6 +68,8 @@ namespace ft
 			if (!isspace(*begin))
 				break ;
 		
+		if (begin == str.end())
+			return ("");
 
 		for (; rbegin != str.rend(); rbegin++)
 			if (!isspace(*rbegin))
@@ -141,7 +143,7 @@ namespace ft
 
 	bool	isDirectory(std::string const & filename)
 	{
-		std::ofstream	file(filename);
+		std::ofstream	file(filename, std::ios_base::app);
 
 		if (file.is_open())
 			file.close();

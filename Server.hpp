@@ -9,41 +9,28 @@
 # include <arpa/inet.h>
 # include <fcntl.h>
 
+# include "typedefs.hpp"
 # include "Polls.hpp"
 # include "RequestCollector.hpp"
 # include "ResponseHandler.hpp"
 # include "Maintainer.hpp"
 
+# include "utils.hpp"
+
 class Server
 {
-	private:
+	public:
+		typedef ByteTypes::byte_type		byte_type;
+		typedef	ByteTypes::bytes_type		bytes_type;
+		typedef ByteTypes::chunks_type		chunks_type;
+		typedef ByteTypes::bytes_iterator	bytes_iterator;
+		
 	public:
 
-		struct Location
-		{
-			std::string						root;
-			std::vector<std::string>		indexes;
-			std::vector<std::string>		methods;
-			std::string						redir;
-			std::string						e_is_dir;
-			std::map<int, std::string>		error_pages;
-			std::map<std::string, Location>	locations;
-			size_t							buf_size;
-		};
+		typedef std::map<std::string, Location>		locations_type;
+		typedef ServerSettings						Settings;
+		typedef ServerSettings::hosts_ports_type	hosts_ports_type;
 
-		typedef std::pair<std::string, std::string>		host_port_type;
-		typedef	std::pair<host_port_type, int>			listen_params_type;
-		typedef std::map<std::string, Location>			locations_type;
-		typedef	std::vector<listen_params_type>			hosts_ports_type;
-
-		struct Settings
-		{
-			std::vector<std::string>	server_names;
-			locations_type				locations;
-			Location					def_settings;
-			hosts_ports_type			host_port;
-		};
-	
 	private:
 	
 	public:

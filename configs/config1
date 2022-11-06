@@ -1,0 +1,36 @@
+server {
+	server_names		popa pisya
+	listen				127.0.0.1::12
+	listen				127.0.0.1:1026:12
+
+	root				./root
+	indexes				index.html
+	client_body_size	10Mb
+
+	location / {
+	}
+}
+
+server {
+	server_names		popa pisya
+	listen				127.0.0.1:1024:12
+
+	root				./root
+	indexes				index.html
+	client_body_size	10Mb
+
+	location / {
+	}
+}
+
+server {
+	server_names		popa pisya
+	listen				127.0.0.1:1025:12
+
+	root				./root
+	indexes				index.html
+	client_body_size	10Mb
+
+	location / {
+	}
+}

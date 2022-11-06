@@ -1,4 +1,13 @@
-SRCS		=	$(wildcard *.cpp)			\
+SRCS		=	Polls.cpp				\
+				Server.cpp				\
+				Meta.cpp				\
+				Request.cpp				\
+				RequestCollector.cpp	\
+				Response.cpp			\
+				Maintainer.cpp			\
+				ResponseHandler.cpp		\
+				utils.cpp				\
+				webserv.cpp
 
 OBJS		=	$(SRCS:.cpp=.o)
 
