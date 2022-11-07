@@ -1,21 +1,21 @@
 #include "Meta.hpp"
 #include <iostream>
 
-static std::string	_initKeywords(std::string const & line)
-{
-	return (line);
-}
-
-std::vector<std::string>	Meta::_keywords = ft::containerazeConfFile<std::vector<std::string> >("keywords", &_initKeywords);
+std::vector<std::string>	Meta::_keywords;
 
 Meta::Meta(void)
 	: proto_num(getprotobyname("tcp")->p_proto)
 {
+	if (Meta::_keywords.empty())
+		Meta::_keywords = ft::containerazeConfFile<std::vector<std::string> >("info/keywords", &ft::returnLine);
 };
 
 Meta::Meta(std::ifstream & conf)
 	: proto_num(getprotobyname("tcp")->p_proto)
 {
+	if (Meta::_keywords.empty())
+		Meta::_keywords = ft::containerazeConfFile<std::vector<std::string> >("info/keywords", &ft::returnLine);
+
 	this->configurateServers(conf);
 };
 
@@ -89,13 +89,16 @@ void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 {
 	location.root = ft::split(p_location.params["root"]).back();
 
+	if (!location.root.empty() && location.root.back() != '/')
+		location.root.push_back('/');
+
 	location.indexes = ft::split(p_location.params["indexes"]);
 	if (location.indexes[0].empty())
 		location.indexes.clear();
 
 	location.methods = ft::split(p_location.params["allow_methods"]);
 	if (location.methods[0].empty())
-		location.methods = Meta::_getAllMethods();
+		location.methods.clear();
 
 	location.redir = ft::split(p_location.params["redirect"]).back();
 	location.e_is_dir = ft::split(p_location.params["if_request_is_dir"]).back();
@@ -227,7 +230,7 @@ void	Meta::_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & lin
 	}
 
 	if (!conf.good() && !conf.eof())
-		throw std::runtime_error(strerror(errno));
+		throw std::runtime_error(std::string("config file: ") + strerror(errno));
 
 	if (ft::trim(line) != "}")
 		throw std::logic_error("unexpected end of block: missing line with only '}'");

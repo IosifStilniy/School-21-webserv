@@ -143,10 +143,16 @@ namespace ft
 
 	bool	isDirectory(std::string const & filename)
 	{
+		std::ifstream	ifile(filename);
+
+		ifile.close();
+
+		if (!ifile.good())
+			return (false);
+
 		std::ofstream	file(filename, std::ios_base::app);
 
-		if (file.is_open())
-			file.close();
+		file.close();
 
 		if (file.good())
 			return (false);
@@ -179,5 +185,10 @@ namespace ft
 		if (exp == std::string::npos)
 			return (num);
 		return (num * std::pow(2, 10 * (exp + 1)));
+	}
+
+	std::string	returnLine(std::string const & line)
+	{
+		return (line);
 	}
 };

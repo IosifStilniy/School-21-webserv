@@ -39,13 +39,26 @@ void	Server::initialize(std::string const & host_port, int proto_num)
 	server_addr.sin_port = htons(strtol(this->host_port.second.c_str(), NULL, 10));
 
 	if (bind(this->polls.getListenSocket(), reinterpret_cast<sockaddr *>(&server_addr), sizeof(server_addr)))
-		throw std::runtime_error(strerror(errno));
+		throw std::runtime_error("bind: socket " + ft::num_to_string(this->polls.getListenSocket()) + ": " + strerror(errno));
 }
 
 void	Server::startListen(void)
 {
 	if (listen(this->polls.getListenSocket(), this->backlog))
-		throw std::runtime_error(strerror(errno));
+		throw std::runtime_error("listen: socket " + ft::num_to_string(this->polls.getListenSocket()) + strerror(errno));
+}
+
+void	Server::_poll(int timeout)
+{
+	this->polls.poll(timeout);
+
+	std::vector<int>	bad_sockets = this->polls.clear();
+
+	for (std::vector<int>::const_iterator socket = bad_sockets.begin(); socket != bad_sockets.end(); socket++)
+	{
+		// this->req_coll.erase(*socket);
+		this->maintainer.erase(*socket);
+	}
 }
 
 void	Server::proceed(int timeout)
@@ -53,7 +66,8 @@ void	Server::proceed(int timeout)
 	int	socket;
 
 	this->maintainer.proceedRequests(req_coll);
-	this->polls.poll(timeout);
+
+	this->_poll(timeout);
 
 	socket = this->polls.getNextSocket();
 	if (polls.isListenSocket(socket))
@@ -62,16 +76,16 @@ void	Server::proceed(int timeout)
 		socket = this->polls.getNextSocket();
 	}
 
+	// std::cout << "tit" << std::endl;
 	while (socket)
 	{
+		std::cout << "socket " << socket << " " << this->polls[socket]->revents << std::endl;
 		if ((this->polls[socket]->revents & POLLIN) == POLLIN)
 			this->req_coll.collect(socket);
 		
-		// std::cout << "socket: " << socket << std::endl;
-
-		if (!this->req_coll[socket].empty())
-			this->req_coll[socket].front().printOptions(this->req_coll[socket].front().options);
-
+		// if (!this->req_coll[socket].empty())
+		// 	this->req_coll[socket].front().printOptions(this->req_coll[socket].front().options);
+		
 		if ((this->polls[socket]->revents & POLLOUT) == POLLOUT)
 			this->resp_handler.giveResponse(this->maintainer[socket], socket);
 

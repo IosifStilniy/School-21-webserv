@@ -36,6 +36,7 @@ void	Polls::_realloc(void)
 
 void	Polls::_erase(size_t i)
 {
+	close(this->polls[i].fd);
 	this->size--;
 	for (; i < this->size; i++)
 		this->polls[i] = this->polls[i + 1];
@@ -75,7 +76,6 @@ void	Polls::setSockOpt(pollfd & poll_struct, int option_name, int option_value)
 void	Polls::poll(int timeout)
 {
 	this->_ready = ::poll(this->polls, this->size, timeout);
-	this->clear();
 	this->_current = 0;
 }
 
@@ -114,9 +114,18 @@ int	Polls::getListenSocket()	const
 	return (this->polls[0].fd);
 }
 
-void	Polls::clear(void)
+std::vector<int>	Polls::clear(void)
 {
+	std::vector<int>	bad_sockets;
+
 	for (size_t i = this->size; i > 0; i--)
-		if (POLLCLR & this->polls[i - 1].revents)
-			this->_erase(i - 1);
+	{
+		if (!(POLLCLR & this->polls[i - 1].revents))
+			continue ;
+		
+		bad_sockets.push_back(this->polls[i - 1].fd);
+		this->_erase(i - 1);
+	}
+
+	return (bad_sockets);
 }

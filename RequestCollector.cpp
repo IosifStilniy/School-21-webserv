@@ -179,6 +179,11 @@ void	RequestCollector::collect(int socket)
 	}
 }
 
+void	RequestCollector::erase(const int socket)
+{
+	this->_sockets.erase(socket);
+}
+
 RequestCollector::iterator	RequestCollector::begin()
 {
 	return (this->_sockets.begin());

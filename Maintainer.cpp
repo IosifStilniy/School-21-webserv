@@ -112,6 +112,11 @@ void	Maintainer::proceedRequests(RequestCollector & requests)
 	}
 }
 
+void	Maintainer::erase(const int socket)
+{
+	this->_sockets.erase(socket);
+}
+
 Maintainer::iterator	Maintainer::begin()
 {
 	return (this->_sockets.begin());

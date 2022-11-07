@@ -44,13 +44,15 @@ class Server
 		Maintainer				maintainer;
 		ResponseHandler			resp_handler;
 
+		Server(void);
+		~Server();
+
 		void	initialize(std::string const & host_port, int proto_num);
 		void	startListen(void);
 		void	proceed(int timeout = -1);
 
-	public:
-		Server(void);
-		~Server();
+	private:
+		void	_poll(int timeout = -1);
 };
 
 #endif

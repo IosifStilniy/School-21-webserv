@@ -16,25 +16,32 @@ void	Request::setValues(ft::key_value_type const & field_values)
 	ft::splited_string	params;
 	ft::key_value_type	key_value;
 
+	this->options[field_values.first];
 	for (ft::splited_string::const_iterator start = splited_values.begin(); start != splited_values.end(); start++)
 	{
 		params = ft::split(*start, ";");
+		params[0] = ft::trim(params[0]);
 
+		this->options[field_values.first][params[0]];
 		for (ft::splited_string::const_iterator start = params.begin() + 1; start != params.end(); start++)
 		{
 			key_value = ft::splitHeader(*start, "=");
-			this->options[field_values.first][ft::trim(params[0])][key_value.first] = key_value.second;
+			this->options[field_values.first][params[0]][key_value.first] = key_value.second;
 		}
 	}
 }
 
 std::string const &	Request::getOnlyValue(header_fields::iterator field)
 {
+	if (field->second.empty())
+		field->second[""];
 	return (field->second.rbegin()->first);
 }
 
 std::string const &	Request::getOnlyValue(std::string const & field)
 {
+	if (this->options[field].empty())
+		this->options[field][""];
 	return (this->options[field].rbegin()->first);
 }
 
@@ -46,7 +53,7 @@ void	Request::parseHeader(void)
 	ft::splited_string	splited = ft::split(std::string(this->chunks.front().begin(), this->chunks.front().end()), "\n");
 	ft::splited_string	splited_line = ft::split(splited[0]);
 
-	this->setValues(std::make_pair(METHOD, splited_line[0]));
+	this->setValues(std::make_pair(METHOD, ft::toLower(splited_line[0])));
 	this->setValues(std::make_pair(CONTENT_PATH, splited_line[1]));
 	this->setValues(std::make_pair(HTTP_V, splited_line[2]));
 
@@ -73,7 +80,7 @@ bool	Request::isFullyReceived(void)
 		return (false);
 
 	if ((!this->content_length
-		&& (this->transfer_encoding.empty() || this->transfer_encoding.find("chunked") != this->transfer_encoding.end()))
+		&& (this->transfer_encoding.find("chunked") != this->transfer_encoding.end()))
 		|| (this->content_length && this->content_length == this->chunks.front().size())
 	)
 		return (true);

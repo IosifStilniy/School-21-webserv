@@ -6,6 +6,8 @@
 # include <string>
 # include <cstring>
 # include <sys/socket.h>
+# include <unistd.h>
+# include <vector>
 
 # define POLLCLR (POLLERR | POLLHUP | POLLNVAL)
 
@@ -30,15 +32,15 @@ class Polls
 
 		pollfd *	operator[](int socket);
 
-		void		append(int socket, int flag);
-		pollfd &	back(void);
-		void		setSockOpt(pollfd & poll_struct, int option_name, int option_value);
-		void		poll(int timeout = -1);
-		int			getNextSocket(void);
-		size_t		getIndex(int socket)			const;
-		bool		isListenSocket(int socket)		const;
-		int			getListenSocket()				const;
-		void		clear(void);
+		void				append(int socket, int flag);
+		pollfd &			back(void);
+		void				setSockOpt(pollfd & poll_struct, int option_name, int option_value);
+		void				poll(int timeout = -1);
+		int					getNextSocket(void);
+		size_t				getIndex(int socket)			const;
+		bool				isListenSocket(int socket)		const;
+		int					getListenSocket()				const;
+		std::vector<int>	clear(void);
 };
 
 #endif

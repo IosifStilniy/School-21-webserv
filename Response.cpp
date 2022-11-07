@@ -1,13 +1,36 @@
 #include "Response.hpp"
 
-Response::Response(void)
-	: chunks(), options(), status(0), inited(false), settings(nullptr), path_location(std::make_pair("", nullptr))
+static std::pair<const int, std::string>	statusesInit(std::string const & line)
 {
+	ft::key_value_type	k_v = ft::splitHeader(line, "\t");
+
+	return (std::make_pair(strtoul(k_v.first.c_str(), NULL, 10), ft::trim(k_v.second)));
+}
+
+std::vector<std::string>	Response::supported_protocols;
+std::vector<std::string>	Response::implemented_methods;
+std::map<int, std::string>	Response::statuses;
+
+Response::Response(void)
+	: chunks(), options(), status(0), inited(false), con_status(std), settings(nullptr), path_location(std::make_pair("", nullptr))
+{
+	if (Response::implemented_methods.empty())
+		Response::implemented_methods = ft::containerazeConfFile<ft::splited_string>("info/implemented_methods", &ft::returnLine);
+	if (Response::supported_protocols.empty())
+		Response::supported_protocols = ft::containerazeConfFile<ft::splited_string>("info/supported_protocols", &ft::returnLine);
+	if (Response::statuses.empty())
+		Response::statuses = ft::containerazeConfFile<std::map<int, std::string> >("info/statuses", &statusesInit);
 }
 
 Response::Response(const Response & src)
 {
 	static_cast<void>(src);
+}
+
+Response::~Response()
+{
+	this->in.close();
+	this->out.close();
 }
 
 void	Response::readFile(void)
@@ -88,8 +111,10 @@ void	Response::badResponse(int status, std::string error_page)
 	this->readFile(error_page);
 
 	if (error_page == "def_err.html")
-		this->chunks.front() = ft::replaceBytes(this->chunks.front(), std::string("STATUS_CODE"), ft::num_to_string(status));
+		this->chunks.front() = ft::replaceBytes(this->chunks.front(), std::string("STATUS_CODE"), ft::num_to_string(status) + " " + Response::statuses[status]);
 
+	this->options["Server"] = "webserv/0.1";
+	this->options["Connection"] = "close";
 	this->options["Content-Length"] = ft::num_to_string(this->chunks.front().size());
 	this->options["Content-Type"] = "text/html";
 }
@@ -106,6 +131,8 @@ void	Response::_getSettings(RequestCollector::header_values const & host, std::v
 		this->settings = &*start;
 		return ;
 	}
+
+	this->settings = &settings_collection.front();
 }
 
 void	Response::_getLocation(Location::locations_type & locations, std::string const & path)
@@ -124,25 +151,26 @@ void	Response::_getLocation(Location::locations_type & locations, std::string co
 		length = start->first.size();
 	}
 
-	if (!founded || founded->locations.empty())
+	if (!founded)
 	{
 		this->path_location = std::make_pair(loc_path, founded);
 		return ;
 	}
 
-	this->_getLocation(founded->locations, path);
+	if (!founded->locations.empty())
+		this->_getLocation(founded->locations, path);
 
 	if (this->path_location.second)
 		return ;
 	
 	this->path_location = std::make_pair(loc_path, founded);
 
-	std::string	root = founded->root;
+	std::string *	root = &founded->root;
 
-	if (root.empty())
-		root = this->settings->def_settings.root;
+	if (root->empty())
+		root = &this->settings->def_settings.root;
 
-	this->mounted_path = ft::replaceBytes(path, loc_path, root);
+	this->mounted_path = ft::replaceBytes(path, loc_path, *root);
 }
 
 void	Response::_listIndexes(void)
@@ -201,13 +229,24 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 	this->inited = true;
 
 	this->_getSettings(request.options["Host"], settings_collection);
-	if (!this->settings)
+
+	if (std::find(Response::supported_protocols.begin(), Response::supported_protocols.end(), request.getOnlyValue(HTTP_V)) == Response::supported_protocols.end())
 	{
-		this->badResponse(404);
+		for (std::vector<std::string>::const_iterator start = Response::supported_protocols.begin(); start != Response::supported_protocols.end(); start++)
+			this->options["Upgrade"].append(" " + *start);
+
+		this->badResponse(505);
 		return ;
 	}
 
-	if (request.getOnlyValue(HTTP_V) != "HTTP/1" && request.getOnlyValue(HTTP_V) != "HTTP/1.0" && request.getOnlyValue(HTTP_V) != "HTTP/1.1")
+	if (std::find(Response::implemented_methods.begin(), Response::implemented_methods.end(), request.getOnlyValue(METHOD)) == Response::implemented_methods.end())
+	{
+		for (std::vector<std::string>::const_iterator start = Response::implemented_methods.begin(); start != Response::implemented_methods.end(); start++)
+			this->options["Allow"].append(" " + *start);
+
+		this->badResponse(501);
+		return ;
+	}
 
 	this->_getLocation(this->settings->def_settings.locations, request.getOnlyValue("content-path"));
 	if (!this->path_location.second)
@@ -215,6 +254,25 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 		this->badResponse(404);
 		return ;
 	}
+
+	ft::splited_string *	allowed_methods = &this->path_location.second->methods;
+
+	if (allowed_methods->empty())
+		allowed_methods = &this->settings->def_settings.methods;
+
+	if (!allowed_methods->empty() && std::find(allowed_methods->begin(), allowed_methods->end(), request.getOnlyValue(METHOD)) == allowed_methods->end())
+	{
+		for (std::vector<std::string>::const_iterator start = allowed_methods->begin(); start != allowed_methods->end(); start++)
+			this->options["Allow"].append(" " + *start);
+
+		this->badResponse(403);
+		return ;
+	}
+
+	if (request.getOnlyValue("Connection") == "keep-alive")
+		this->con_status = keep_alive;
+	else if (request.getOnlyValue("Connection") == "close")
+		this->con_status = close;
 
 	if (request.getOnlyValue(METHOD) == "get")
 		this->_checkMountedPath();

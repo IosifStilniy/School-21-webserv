@@ -47,6 +47,7 @@ class Maintainer
 		response_queue &	operator[](int socket);
 
 		void	proceedRequests(RequestCollector & requests);
+		void	erase(const int socket);
 
 		iterator		begin();
 		const_iterator	begin()	const;

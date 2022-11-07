@@ -74,6 +74,7 @@ class RequestCollector
 		request_queue &	operator[](int socket);
 
 		void	collect(int socket);
+		void	erase(const int socket);
 
 		iterator		begin();
 		const_iterator	begin()	const;

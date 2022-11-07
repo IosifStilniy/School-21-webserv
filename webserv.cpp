@@ -1,11 +1,6 @@
 #include "webserv.hpp"
 #include <string>
 
-static void	init(std::string const & prog_name)
-{
-	ft::path = std::string(prog_name.begin(), std::find(prog_name.rbegin(), prog_name.rend(), '/').base());
-}
-
 int	main(int argc, char **argv)
 {
 	if (argc != 2)
@@ -14,11 +9,17 @@ int	main(int argc, char **argv)
 		return (1);
 	}
 
-	init(argv[0]);
-
 	std::ifstream	conf;
 
 	ft::openFile(conf, argv[1]);
+
+	std::string	path = std::string(argv[0], strrchr(argv[0], '/'));
+
+	if (chdir(path.c_str()))
+	{
+		std::cerr << path + ": " + strerror(errno) << std::endl;
+		return (1);
+	}
 
 	Meta	meta;
 
@@ -34,8 +35,17 @@ int	main(int argc, char **argv)
 
 	Meta::servers_type::iterator	it = meta.servers.begin();
 
-	for (; it != meta.servers.end(); it++)
-		it->second.startListen();
+	try
+	{
+		for (; it != meta.servers.end(); it++)
+			it->second.startListen();
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "error: " << e.what() << '\n';
+		return (1);
+	}
+	
 	
 	while (1)
 		for (it = meta.servers.begin(); it != meta.servers.end(); it++)

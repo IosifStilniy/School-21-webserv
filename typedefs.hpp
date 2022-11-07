@@ -10,11 +10,6 @@
 
 # include "utils.hpp"
 
-namespace ft
-{
-	std::string	path;
-}
-
 struct ByteTypes
 {
 	typedef char						byte_type;

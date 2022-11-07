@@ -2,6 +2,7 @@
 # define RESPONSEHANDLER_HPP
 
 # include <sys/socket.h>
+# include <unistd.h>
 
 # include "Maintainer.hpp"
 
@@ -20,8 +21,6 @@ class ResponseHandler
 		typedef ByteTypes::bytes_type		bytes_type;
 
 		std::string	_formHeader(header_fields & options, int status);
-
-		static std::map<int, std::string>	_statuses;
 
 	public:
 		ResponseHandler(void);

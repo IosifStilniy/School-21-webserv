@@ -43,6 +43,7 @@ namespace ft
 	bool			isDirectory(std::string const & filename);
 	void			readConfFile(std::ifstream & conf_file, std::string & line);
 	size_t			removePrefixB(std::string const & size);
+	std::string		returnLine(std::string const & line);
 
 	template <typename Number>
 	std::string	num_to_string(Number num)
@@ -115,11 +116,11 @@ namespace ft
 	}
 
 	template <typename Container, class Func>
-	Container	containerazeConfFile(std::string const & filename, Func func)
+	Container	containerazeConfFile(std::string const & filename, Func func = &returnLine)
 	{
 		std::ifstream	file;
 
-		openFile(file, ft::path + filename);
+		openFile(file, filename);
 
 		Container 	cont;
 		std::string	line;
@@ -133,6 +134,12 @@ namespace ft
 
 			cont.insert(cont.end(), func(line));
 		}
+
+		if (file.is_open())
+			file.close();
+
+		if (!file.eof())
+			throw std::runtime_error(filename + ": " + strerror(errno));
 
 		return (cont);
 	}
