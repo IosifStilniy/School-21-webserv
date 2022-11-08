@@ -115,14 +115,36 @@ namespace ft
 		return (replaced_sequence);
 	}
 
+	template <typename SrcContainer, typename SearchContainer, typename ReplContainer>
+	SrcContainer	replaceBytesOnce(SrcContainer const & src, SearchContainer const & what_replace, ReplContainer const & replace_with)
+	{
+		typedef typename std::enable_if<std::is_same<typename SrcContainer::value_type, typename SearchContainer::value_type>::value, SrcContainer>::type	_SrcContainer;
+		typedef typename std::enable_if<std::is_same<typename SrcContainer::value_type, typename ReplContainer::value_type>::value, _SrcContainer>::type	__SrcContainer;
+
+		if (what_replace.empty())
+			return (src);
+
+		__SrcContainer							replaced_sequence;
+		typename __SrcContainer::const_iterator	right = std::search(src.begin(), src.end(), what_replace.begin(), what_replace.end());
+
+		replaced_sequence.insert(replaced_sequence.end(), src.begin(), right);
+
+		if (right == src.end())
+			return (replaced_sequence);
+
+		replaced_sequence.insert(replaced_sequence.end(), replace_with.begin(), replace_with.end());
+		replaced_sequence.insert(replaced_sequence.end(), right + what_replace.size(), src.end());
+		
+		return (replaced_sequence);
+	}
+
 	template <typename Container, class Func>
-	Container	containerazeConfFile(std::string const & filename, Func func = &returnLine)
+	void	containerazeConfFile(Container & cont, std::string const & filename, Func func = &returnLine)
 	{
 		std::ifstream	file;
 
 		openFile(file, filename);
 
-		Container 	cont;
 		std::string	line;
 
 		while (file.good())
@@ -140,7 +162,13 @@ namespace ft
 
 		if (!file.eof())
 			throw std::runtime_error(filename + ": " + strerror(errno));
+	}
 
+	template <typename Container, class Func>
+	Container	containerazeConfFile(std::string const & filename, Func func = &returnLine)
+	{
+		Container 	cont;
+		containerazeConfFile(cont, filename, func);
 		return (cont);
 	}
 }

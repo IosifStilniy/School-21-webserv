@@ -25,7 +25,6 @@ std::string	ResponseHandler::_formHeader(header_fields & options, int status)
 
 void	ResponseHandler::giveResponse(Maintainer::response_queue & resp_queue, int socket)
 {
-	std::cout << "zashel" << std::endl;
 	if (resp_queue.empty())
 		return ;
 

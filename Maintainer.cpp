@@ -25,11 +25,8 @@ Maintainer::~Maintainer()
 {
 }
 
-void	Maintainer::_get(request_type & request, Response & response)
+void	Maintainer::_get(Response & response)
 {
-	if (!response.inited)
-		response.init(request, this->_settings);
-
 	response.readFile();
 	
 	if (response.status)
@@ -73,13 +70,16 @@ void	Maintainer::_get(request_type & request, Response & response)
 
 void	Maintainer::_dispatchRequest(request_type & request, Response & response)
 {
+	if (!response.inited)
+		response.init(request, this->_settings);
+
 	size_t	i = 0;
 
 	for (; i < Maintainer::_methods_names.size(); i++)
 		if (Maintainer::_methods_names[i] == ft::toLower(request.getOnlyValue("method")))
 			break ;
 
-	PTR_FUNC(i)(request, response);
+	PTR_FUNC(i)(response);
 }
 
 Maintainer::response_queue &	Maintainer::operator[](int socket)

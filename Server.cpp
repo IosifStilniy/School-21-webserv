@@ -56,7 +56,7 @@ void	Server::_poll(int timeout)
 
 	for (std::vector<int>::const_iterator socket = bad_sockets.begin(); socket != bad_sockets.end(); socket++)
 	{
-		// this->req_coll.erase(*socket);
+		this->req_coll.erase(*socket);
 		this->maintainer.erase(*socket);
 	}
 }
@@ -76,10 +76,9 @@ void	Server::proceed(int timeout)
 		socket = this->polls.getNextSocket();
 	}
 
-	// std::cout << "tit" << std::endl;
 	while (socket)
 	{
-		std::cout << "socket " << socket << " " << this->polls[socket]->revents << std::endl;
+		// std::cout << "socket " << socket << " " << this->polls[socket]->revents << std::endl;
 		if ((this->polls[socket]->revents & POLLIN) == POLLIN)
 			this->req_coll.collect(socket);
 		

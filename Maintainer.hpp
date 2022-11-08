@@ -34,11 +34,11 @@ class Maintainer
 
 		void	_dispatchRequest(request_type & request, Response & response);
 		
-		void	_get(request_type & request, Response & response);
+		void	_get(Response & response);
 		// void	_post(request_type & request, Response & response);
 		// void	_delete(request_type & request, Response & response);
 
-		void	(Maintainer::*_methods[3])(request_type & request, Response & response);
+		void	(Maintainer::*_methods[3])(Response & response);
 
 	public:
 		Maintainer(std::vector<ServerSettings> & settings);

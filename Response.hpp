@@ -10,7 +10,6 @@
 # include "typedefs.hpp"
 # include "RequestCollector.hpp"
 
-
 class Response
 {
 	public:
@@ -49,10 +48,12 @@ class Response
 		~Response();
 
 	private:
-		void	_getSettings(Request::header_values const & host, std::vector<ServerSettings> & settings);
-		void	_getLocation(Location::locations_type & locations, std::string const & path);
+		void	_getSettings(Request & request, std::vector<ServerSettings> & settings);
+		void	_getLocation(Location::locations_type & locations, Request & request);
 		void	_checkMountedPath(void);
 		void	_listIndexes(void);
+		void	_checkSettings(Request & request);
+		void	_checkLocation(Request & request);
 
 
 	public:
@@ -60,6 +61,7 @@ class Response
 		void				readFile(void);
 		void				readFile(std::string const & filepath);
 		void				badResponse(int status, std::string error_page = "");
+		void				redirect();
 		std::string const &	chooseErrorPageSource(void);
 		std::string const &	chooseErrorPageSource(int status);
 };

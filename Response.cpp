@@ -1,4 +1,5 @@
 #include "Response.hpp"
+#include "exceptions.hpp"
 
 static std::pair<const int, std::string>	statusesInit(std::string const & line)
 {
@@ -15,16 +16,20 @@ Response::Response(void)
 	: chunks(), options(), status(0), inited(false), con_status(std), settings(nullptr), path_location(std::make_pair("", nullptr))
 {
 	if (Response::implemented_methods.empty())
-		Response::implemented_methods = ft::containerazeConfFile<ft::splited_string>("info/implemented_methods", &ft::returnLine);
+		ft::containerazeConfFile(Response::implemented_methods, "info/implemented_methods", &ft::returnLine);
 	if (Response::supported_protocols.empty())
-		Response::supported_protocols = ft::containerazeConfFile<ft::splited_string>("info/supported_protocols", &ft::returnLine);
+		ft::containerazeConfFile(Response::supported_protocols, "info/supported_protocols", &ft::returnLine);
 	if (Response::statuses.empty())
-		Response::statuses = ft::containerazeConfFile<std::map<int, std::string> >("info/statuses", &statusesInit);
+		ft::containerazeConfFile(Response::statuses, "info/statuses", &statusesInit);
 }
 
 Response::Response(const Response & src)
+	: chunks(src.chunks), options(src.options), status(src.status), inited(src.inited), con_status(src.con_status), settings(src.settings), path_location(src.path_location)
 {
-	static_cast<void>(src);
+	this->in.clear();
+	this->in.close();
+	this->out.clear();
+	this->out.close();
 }
 
 Response::~Response()
@@ -119,13 +124,43 @@ void	Response::badResponse(int status, std::string error_page)
 	this->options["Content-Type"] = "text/html";
 }
 
-void	Response::_getSettings(RequestCollector::header_values const & host, std::vector<ServerSettings> & settings_collection)
+void	Response::redirect(void)
+{
+	this->status = 300;
+	this->options["Location"] = this->path_location.second->redir;
+	this->options["Server"] = "webserv/0.1";
+}
+
+void	Response::_checkSettings(Request & request)
+{
+	if (std::find(Response::supported_protocols.begin(), Response::supported_protocols.end(), request.getOnlyValue(HTTP_V)) == Response::supported_protocols.end())
+	{
+		for (std::vector<std::string>::const_iterator start = Response::supported_protocols.begin(); start != Response::supported_protocols.end(); start++)
+			this->options["Upgrade"].append(" " + *start);
+		
+		this->options["Connection"].append(" upgrade");
+
+		this->badResponse(426);
+		throw ServerSettingsException(*this, request.getOnlyValue(HTTP_V) + ": unsupported protocol");
+	}
+
+	if (std::find(Response::implemented_methods.begin(), Response::implemented_methods.end(), request.getOnlyValue(METHOD)) == Response::implemented_methods.end())
+	{
+		for (std::vector<std::string>::const_iterator start = Response::implemented_methods.begin(); start != Response::implemented_methods.end(); start++)
+			this->options["Allow"].append(" " + *start);
+
+		this->badResponse(501);
+		throw MethodException(*this, request.getOnlyValue(METHOD), "unimplemeted method");
+	}
+}
+
+void	Response::_getSettings(Request & request, std::vector<ServerSettings> & settings_collection)
 {
 	for (std::vector<ServerSettings>::iterator start = settings_collection.begin(); start != settings_collection.end(); start++)
 	{
-		if (start->server_names.empty() && host.empty())
+		if (start->server_names.empty() && request.options["Host"].empty())
 			;
-		else if (std::find(start->server_names.begin(), start->server_names.end(), host.begin()->first) == start->server_names.end())
+		else if (std::find(start->server_names.begin(), start->server_names.end(), request.options["Host"].begin()->first) == start->server_names.end())
 			continue ;
 		
 		this->settings = &*start;
@@ -133,13 +168,40 @@ void	Response::_getSettings(RequestCollector::header_values const & host, std::v
 	}
 
 	this->settings = &settings_collection.front();
+
+	this->_checkSettings(request);
 }
 
-void	Response::_getLocation(Location::locations_type & locations, std::string const & path)
+void	Response::_checkLocation(Request & request)
+{
+	if (!this->path_location.second)
+	{
+		this->badResponse(404);
+		throw LocationException(*this, "undefined");
+	}
+
+	ft::splited_string *	allowed_methods = &this->path_location.second->methods;
+
+	if (allowed_methods->empty())
+		allowed_methods = &this->settings->def_settings.methods;
+
+	if (!allowed_methods->empty() && std::find(allowed_methods->begin(), allowed_methods->end(), request.getOnlyValue(METHOD)) == allowed_methods->end())
+	{
+		for (std::vector<std::string>::const_iterator start = allowed_methods->begin(); start != allowed_methods->end(); start++)
+			this->options["Allow"].append(" " + *start);
+
+		this->badResponse(403);
+
+		throw MethodException(*this, request.getOnlyValue(METHOD), "method not allowed");
+	}
+}
+
+void	Response::_getLocation(Location::locations_type & locations, Request & request)
 {
 	std::string 		loc_path;
 	Location *			founded = nullptr;
 	size_t				length = 0;
+	std::string const &	path = request.getOnlyValue(CONTENT_PATH);
 
 	for (Location::locations_type::iterator start = locations.begin(); start != locations.end(); start++)
 	{
@@ -158,7 +220,7 @@ void	Response::_getLocation(Location::locations_type & locations, std::string co
 	}
 
 	if (!founded->locations.empty())
-		this->_getLocation(founded->locations, path);
+		this->_getLocation(founded->locations, request);
 
 	if (this->path_location.second)
 		return ;
@@ -170,7 +232,9 @@ void	Response::_getLocation(Location::locations_type & locations, std::string co
 	if (root->empty())
 		root = &this->settings->def_settings.root;
 
-	this->mounted_path = ft::replaceBytes(path, loc_path, *root);
+	this->mounted_path = ft::replaceBytesOnce(path, loc_path, *root);
+
+	this->_checkLocation(request);
 }
 
 void	Response::_listIndexes(void)
@@ -198,6 +262,7 @@ void	Response::_listIndexes(void)
 	}
 
 	this->badResponse(404);
+	throw PathException(*this, "not found");
 }
 
 void	Response::_checkMountedPath()
@@ -212,13 +277,13 @@ void	Response::_checkMountedPath()
 			return ;
 		
 		this->badResponse(404);
-		return ;
+		throw PathException(*this, "not found");
 	}
 
 	if (this->path_location.second->indexes.empty() && this->settings->def_settings.indexes.empty())
 	{
 		this->badResponse(403, this->chooseErrorPageSource());
-		return ;
+		throw PathException(*this, "is directory");
 	}
 
 	this->_listIndexes();
@@ -228,44 +293,29 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 {
 	this->inited = true;
 
-	this->_getSettings(request.options["Host"], settings_collection);
-
-	if (std::find(Response::supported_protocols.begin(), Response::supported_protocols.end(), request.getOnlyValue(HTTP_V)) == Response::supported_protocols.end())
+	try
 	{
-		for (std::vector<std::string>::const_iterator start = Response::supported_protocols.begin(); start != Response::supported_protocols.end(); start++)
-			this->options["Upgrade"].append(" " + *start);
-
-		this->badResponse(505);
+		this->_getSettings(request, settings_collection);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
 		return ;
 	}
 
-	if (std::find(Response::implemented_methods.begin(), Response::implemented_methods.end(), request.getOnlyValue(METHOD)) == Response::implemented_methods.end())
+	try
 	{
-		for (std::vector<std::string>::const_iterator start = Response::implemented_methods.begin(); start != Response::implemented_methods.end(); start++)
-			this->options["Allow"].append(" " + *start);
-
-		this->badResponse(501);
+		this->_getLocation(this->settings->def_settings.locations, request);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
 		return ;
 	}
 
-	this->_getLocation(this->settings->def_settings.locations, request.getOnlyValue("content-path"));
-	if (!this->path_location.second)
+	if (!this->path_location.second->redir.empty())
 	{
-		this->badResponse(404);
-		return ;
-	}
-
-	ft::splited_string *	allowed_methods = &this->path_location.second->methods;
-
-	if (allowed_methods->empty())
-		allowed_methods = &this->settings->def_settings.methods;
-
-	if (!allowed_methods->empty() && std::find(allowed_methods->begin(), allowed_methods->end(), request.getOnlyValue(METHOD)) == allowed_methods->end())
-	{
-		for (std::vector<std::string>::const_iterator start = allowed_methods->begin(); start != allowed_methods->end(); start++)
-			this->options["Allow"].append(" " + *start);
-
-		this->badResponse(403);
+		this->redirect();
 		return ;
 	}
 
@@ -274,6 +324,15 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 	else if (request.getOnlyValue("Connection") == "close")
 		this->con_status = close;
 
-	if (request.getOnlyValue(METHOD) == "get")
+	if (request.getOnlyValue(METHOD) != "get")
+		return ;
+	
+	try
+	{
 		this->_checkMountedPath();
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
+	}
 }
