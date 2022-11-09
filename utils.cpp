@@ -141,13 +141,31 @@ namespace ft
 		return (lower);
 	}
 
-	bool	isDirectory(std::string const & filename)
+	std::string		toUpper(std::string const & str)
+	{
+		std::string	lower = str;
+
+		for (std::string::iterator start = lower.begin(), end = lower.end(); start != end; start++)
+			*start = toupper(*start);
+		
+		return (lower);
+	}
+
+	bool	exist(std::string const & filename)
 	{
 		std::ifstream	ifile(filename);
 
 		ifile.close();
 
 		if (!ifile.good())
+			return (false);
+
+		return (true);
+	}
+
+	bool	isDirectory(std::string const & filename)
+	{
+		if (!exist(filename))
 			return (false);
 
 		std::ofstream	file(filename, std::ios_base::app);

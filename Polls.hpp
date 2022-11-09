@@ -27,6 +27,7 @@ class Polls
 		size_t		size;
 		
 		Polls(void);
+		Polls(int * sockets, int * flags, int quantity);
 		Polls(int socket, int flag);
 		~Polls();
 
@@ -37,9 +38,13 @@ class Polls
 		void				setSockOpt(pollfd & poll_struct, int option_name, int option_value);
 		void				poll(int timeout = -1);
 		int					getNextSocket(void);
-		size_t				getIndex(int socket)			const;
-		bool				isListenSocket(int socket)		const;
-		int					getListenSocket()				const;
+		size_t				getIndex(int socket)		const;
+		bool				isListenSocket(int socket)	const;
+		int					getListenSocket()			const;
+		bool				isGoodByIndex(int indx)		const;
+		bool				isReadyByIndex(int indx)	const;
+		bool				isGood(int socket)			const;
+		bool				isReady(int socket)			const;
 		std::vector<int>	clear(void);
 };
 

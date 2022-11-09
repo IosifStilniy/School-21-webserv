@@ -4,12 +4,13 @@
 const std::string RequestCollector::_eof(HTTP_EOF);
 
 RequestCollector::RequestCollector(void)
-	: _ref_eof(RequestCollector::_eof)
+	: _buf(new byte_type[BUFSIZE]), _ref_eof(RequestCollector::_eof)
 {
 }
 
 RequestCollector::~RequestCollector()
 {
+	delete [] this->_buf;
 }
 
 bool	RequestCollector::_transferEnded(byte_type * & msg_start, size_t dstnc)

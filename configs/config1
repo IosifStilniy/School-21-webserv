@@ -2,8 +2,14 @@ server {
 	server_names		popa pisya
 	listen				127.0.0.1::12
 
-	root				root/
 
 	location / {
+		root			www/root/
+		
+		allow_methods	get
+	}
+
+	location /content/ {
+		root			www/post/
 	}
 }

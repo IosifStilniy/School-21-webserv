@@ -13,8 +13,11 @@ std::vector<std::string>	Response::implemented_methods;
 std::map<int, std::string>	Response::statuses;
 
 Response::Response(void)
-	: chunks(), options(), status(0), inited(false), con_status(std), settings(nullptr), path_location(std::make_pair("", nullptr))
+	: status(0), inited(false), con_status(cStd), trans_mode(tStd), settings(nullptr), path_location(std::make_pair("", nullptr)), polls((int [2]){0, 0}, (int [2]){POLLIN, POLLOUT}, 2), in(polls.polls[0].fd), out(polls.polls[1].fd), buf_size(sizeof(*buf) * BUFSIZE), buf(new byte_type[buf_size])
 {
+	this->in = -1;
+	this->out = -1;
+
 	if (Response::implemented_methods.empty())
 		ft::containerazeConfFile(Response::implemented_methods, "info/implemented_methods", &ft::returnLine);
 	if (Response::supported_protocols.empty())
@@ -24,18 +27,18 @@ Response::Response(void)
 }
 
 Response::Response(const Response & src)
-	: chunks(src.chunks), options(src.options), status(src.status), inited(src.inited), con_status(src.con_status), settings(src.settings), path_location(src.path_location)
+	: status(0), inited(false), con_status(cStd), trans_mode(tStd), settings(nullptr), path_location(std::make_pair("", nullptr)), polls((int []){0, 0}, (int []){POLLIN, POLLOUT}, 2), in(polls.polls[0].fd), out(polls.polls[1].fd), buf_size(sizeof(*buf) * BUFSIZE), buf(new byte_type[buf_size])
 {
-	this->in.clear();
-	this->in.close();
-	this->out.clear();
-	this->out.close();
+	static_cast<void>(src);
+	this->in = -1;
+	this->out = -1;
 }
 
 Response::~Response()
 {
-	this->in.close();
-	this->out.close();
+	::close(this->in);
+	::close(this->out);
+	delete [] this->buf;
 }
 
 void	Response::readFile(void)
@@ -45,40 +48,77 @@ void	Response::readFile(void)
 
 void	Response::readFile(std::string const & file_path)
 {
-	if (!this->in.is_open())
-	{
-		this->in.clear();
-		this->in.open(file_path, std::ios_base::binary);
-	}
+	if (this->in == -1)
+		this->in = open(file_path.c_str(), O_RDONLY | O_NONBLOCK);
 	
-	if (!this->in.good())
+	if (this->chunks.empty() || this->chunks.back().size() == this->buf_size)
+		this->chunks.push_back(bytes_type());
+
+	this->polls.poll(0);
+
+	if (!this->polls.isGood(this->in))
+	{
+		::close(this->in);
+		this->in = -1;
+		return ;
+	}
+
+	if (!this->polls.isReady(this->in))
 		return ;
 
-	if (this->chunks.empty() || this->chunks.back().size() == sizeof(this->buf))
-		this->chunks.push(bytes_type());
+	size_t	length = read(this->in, this->buf, this->buf_size);
 
-	this->in.read(this->buf, sizeof(this->buf));
-
-	size_t	length = this->in.gcount();
+	if (!length)
+	{
+		::close(this->in);
+		this->in = -1;
+		return ;
+	}
 
 	this->end = this->buf + length;
 	this->spliter = this->end;
 
 	bytes_type &	chunk = this->chunks.back();
 
-	if (length > sizeof(this->buf) - chunk.size())
-		this->spliter = this->buf + sizeof(this->buf) - chunk.size();
+	if (length > this->buf_size - chunk.size())
+		this->spliter = this->buf + this->buf_size - chunk.size();
 	
 	chunk.insert(chunk.end(), this->buf, this->spliter);
 
 	if (this->spliter != this->end)
-		chunks.push(bytes_type(this->spliter, this->end));
+		chunks.push_back(bytes_type(this->spliter, this->end));
+}
 
-	if (this->in.eof())
+void	Response::writeFile(Request::chunks_type & chunks)
+{
+	if (chunks.empty() || chunks.front().empty())
+		return ;
+
+	if (this->out == -1)
+		this->out = open(this->mounted_path.c_str(), O_WRONLY | O_TRUNC | O_NONBLOCK);
+
+	this->polls.poll(0);
+
+	if (!this->polls.isGood(this->out))
 	{
-		this->in.close();
-		this->in.clear();
+		::close(this->out);
+		this->out = -1;
+		return ;
 	}
+
+	if (!this->polls.isReady(this->out))
+		return ;
+
+	while (!chunks.empty() || !chunks.front().empty())
+	{
+		Request::bytes_type &	chunk = chunks.front();
+
+		write(this->out, &chunk[0], chunk.size());
+		chunks.pop();
+	}
+
+	close(this->out);
+	this->out = -1;
 }
 
 std::string const &	Response::chooseErrorPageSource(void)
@@ -99,13 +139,10 @@ void	Response::badResponse(int status, std::string error_page)
 {
 	this->status = status;
 
-	if (this->in.is_open())
-		this->in.close();
+	::close(this->in);
+	this->in = -1;
 	
-	this->in.clear();
-	
-	while (!this->chunks.empty())
-		this->chunks.pop();
+	this->chunks.clear();
 
 	if (error_page.empty() && this->settings)
 		error_page = this->chooseErrorPageSource(status);
@@ -180,17 +217,22 @@ void	Response::_checkLocation(Request & request)
 		throw LocationException(*this, "undefined");
 	}
 
-	ft::splited_string *	allowed_methods = &this->path_location.second->methods;
+	std::set<std::string> const *	allowed_methods = &this->path_location.second->methods;
 
 	if (allowed_methods->empty())
 		allowed_methods = &this->settings->def_settings.methods;
 
 	if (!allowed_methods->empty() && std::find(allowed_methods->begin(), allowed_methods->end(), request.getOnlyValue(METHOD)) == allowed_methods->end())
 	{
-		for (std::vector<std::string>::const_iterator start = allowed_methods->begin(); start != allowed_methods->end(); start++)
-			this->options["Allow"].append(" " + *start);
+		std::set<std::string>::const_iterator	start = allowed_methods->begin();
 
-		this->badResponse(403);
+		for (; start != allowed_methods->end(); start++)
+			this->options["Allow"].append(" " + ft::toUpper(*start) + ",");
+		
+		if (this->options["Allow"].back() == ',')
+			this->options["Allow"].pop_back();
+
+		this->badResponse(405);
 
 		throw MethodException(*this, request.getOnlyValue(METHOD), "method not allowed");
 	}
@@ -239,25 +281,18 @@ void	Response::_getLocation(Location::locations_type & locations, Request & requ
 
 void	Response::_listIndexes(void)
 {
-	std::ifstream						check;
-	std::vector<std::string> const *	indexes = &this->path_location.second->indexes;
+	std::ifstream					check;
+	std::set<std::string> const *	indexes = &this->path_location.second->indexes;
 
 	if (indexes->empty())
 		indexes = &this->settings->def_settings.indexes;
 
-	for (std::vector<std::string>::const_iterator index = indexes->begin(); index != indexes->end(); index++)
+	for (std::set<std::string>::const_iterator index = indexes->begin(); index != indexes->end(); index++)
 	{
-		if (ft::isDirectory(mounted_path + *index))
-			continue ;
-
-		check.open(mounted_path + *index);
-		check.close();
-		
-		if (!check.good())
+		if (!ft::exist(mounted_path + *index) || ft::isDirectory(mounted_path + *index))
 			continue ;
 
 		this->mounted_path.append(*index);
-
 		return ;
 	}
 
@@ -265,15 +300,11 @@ void	Response::_listIndexes(void)
 	throw PathException(*this, "not found");
 }
 
-void	Response::_checkMountedPath()
+void	Response::_checkGetPath()
 {
 	if (!ft::isDirectory(this->mounted_path))
 	{
-		std::ifstream	check(this->mounted_path);
-
-		check.close();
-
-		if (check.good())
+		if (ft::exist(this->mounted_path))
 			return ;
 		
 		this->badResponse(404);
@@ -289,50 +320,74 @@ void	Response::_checkMountedPath()
 	this->_listIndexes();
 }
 
+void	Response::_checkPostPath(void)
+{
+	if (ft::exist(this->mounted_path))
+	{
+		this->badResponse(409, this->chooseErrorPageSource(409));
+		throw PathException(*this, "already exist");
+	}
+
+	ft::splited_string	splited = ft::split(this->mounted_path.substr(this->path_location.second->root.size()), "/");
+
+	if (splited[0].empty() || splited.back().back() == '/')
+	{
+		this->badResponse(403, this->chooseErrorPageSource());
+		throw PathException(*this, "filename expected");
+	}
+
+	splited.pop_back();
+
+	std::string	path = this->path_location.second->root;
+
+	if (path.empty())
+		path = this->settings->def_settings.root;
+
+	for (ft::splited_string::const_iterator dir = splited.begin(); dir != splited.end(); dir++)
+	{
+		path.append("/" + *dir);
+
+		if (ft::exist(path))
+			continue ;
+
+		if (mkdir(path.c_str(), MOD))
+		{
+			this->badResponse(500);
+			throw PathException(*this, strerror(errno));
+		}
+	}
+}
+
 void	Response::init(Request & request, std::vector<ServerSettings> & settings_collection)
 {
 	this->inited = true;
 
+	this->options["Server"] = "webserv/0.1";
+
 	try
 	{
 		this->_getSettings(request, settings_collection);
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-		return ;
-	}
-
-	try
-	{
 		this->_getLocation(this->settings->def_settings.locations, request);
+
+		if (!this->path_location.second->redir.empty())
+		{
+			this->redirect();
+			return ;
+		}
+
+		if (request.getOnlyValue(METHOD) == "post")
+			this->_checkPostPath();
+		else
+			this->_checkGetPath();
 	}
 	catch(const std::exception& e)
 	{
 		std::cerr << e.what() << std::endl;
-		return ;
-	}
-
-	if (!this->path_location.second->redir.empty())
-	{
-		this->redirect();
 		return ;
 	}
 
 	if (request.getOnlyValue("Connection") == "keep-alive")
-		this->con_status = keep_alive;
+		this->con_status = cKeep_alive;
 	else if (request.getOnlyValue("Connection") == "close")
-		this->con_status = close;
-
-	if (request.getOnlyValue(METHOD) != "get")
-		return ;
-	
-	try
-	{
-		this->_checkMountedPath();
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-	}
+		this->con_status = cClose;
 }

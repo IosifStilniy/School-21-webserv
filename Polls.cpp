@@ -12,6 +12,13 @@ Polls::Polls(int socket, int flag)
 	this->append(socket, flag);
 }
 
+Polls::Polls(int * sockets, int * flags, int quantity)
+	: _capacity(quantity), _current(0), _ready(0), polls(new pollfd[quantity]), size(0)
+{
+	for (int i = 0; i < quantity; i++)
+		this->append(sockets[i], flags[i]);
+}
+
 Polls::~Polls()
 {
 	delete [] this->polls;
@@ -112,6 +119,51 @@ int	Polls::getListenSocket()	const
 	if (!this->size)
 		return (-1);
 	return (this->polls[0].fd);
+}
+
+bool	Polls::isGoodByIndex(int indx)	const
+{
+	if (POLLCLR & this->polls[indx].revents)
+		return (false);
+	return (true);
+}
+
+bool	Polls::isReadyByIndex(int indx)	const
+{
+	if (this->polls[indx].events & this->polls[indx].revents)
+		return (true);
+	return (this->isGoodByIndex(indx));
+}
+
+bool	Polls::isGood(int socket)	const
+{
+	if (socket < 0)
+		return (false);
+
+	size_t	i = 0;
+
+	while (i < this->size && this->polls[i].fd != socket)
+		i++;
+
+	if (i == this->size || !this->polls[i].revents || (POLLCLR & this->polls[i].revents))
+		return (false);
+
+	return (true);
+}
+
+bool	Polls::isReady(int socket)	const
+{
+	size_t	i = 0;
+
+	while (i < this->size && this->polls[i].fd != socket)
+		i++;
+	
+	if (i == this->size)
+		return (false);
+
+	if (this->polls[i].events & this->polls[i].revents)
+		return (true);
+	return (this->isGoodByIndex(i));
 }
 
 std::vector<int>	Polls::clear(void)

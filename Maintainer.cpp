@@ -25,48 +25,70 @@ Maintainer::~Maintainer()
 {
 }
 
-void	Maintainer::_get(Response & response)
+void	Maintainer::_get(Request & request, Response & response)
 {
 	response.readFile();
 	
+	std::cout << "chunks: " << response.chunks.size() << std::endl;
+	std::cout << "chunk size: " << response.chunks.front().size() << std::endl;
+	std::cout << "response status: " << response.status << std::endl;
+	std::cout << "response good: " << response.polls.isGood(response.in) << std::endl;
 	if (response.status)
 		return ;
 
-	response.options["Server"] = "webserv/0.1";
-
-	if (!response.in.good() && !response.in.eof())
+	if (!response.polls.isGood(response.in) && response.chunks.front().empty())
 	{
 		response.badResponse(404);
 		return ;
 	}
 
-	if (response.in.is_open())
+	if (response.polls.isGood(response.in))
 	{
+		if (request.options["TE"].find("chunked") == request.options["TE"].end())
+			return ;
+
 		if (!response.options["Transfer-Encoding"].empty())
 			response.options["Transfer-Encoding"].append(",");
 		response.options["Transfer-Encoding"].append("chunked");
+		response.trans_mode = Response::tChunked;
 		response.status = 200;
 		return ;
 	}
 
-	size_t	length = response.chunks.front().size();
-
-	if (response.chunks.front() != response.chunks.back())
-		length += response.chunks.back().size();
+	size_t	length = 0;
+	
+	for (Response::chunks_type::const_iterator chunk = response.chunks.begin(); chunk != response.chunks.end(); chunk++)
+		length += chunk->size();
 
 	response.options["Content-Length"] = ft::num_to_string(length);
 	response.status = 200;
 }
 
-// void	Maintainer::_post(request_type & request, Response & response)
-// {
+void	Maintainer::_post(request_type & request, Response & response)
+{
+	response.writeFile(request.chunks);
 
-// }
+	if (!response.polls.isGood(response.out))
+	{
+		response.badResponse(500);
+		return ;
+	}
 
-// void	Maintainer::_delete(request_type & request, Response & response)
-// {
+	response.status = 201;
+}
 
-// }
+void	Maintainer::_delete(request_type & request, Response & response)
+{
+	static_cast<void>(request);
+
+	if (std::remove(response.mounted_path.c_str()))
+	{
+		response.badResponse(500);
+		return ;
+	}
+
+	response.status = 200;
+}
 
 void	Maintainer::_dispatchRequest(request_type & request, Response & response)
 {
@@ -79,7 +101,7 @@ void	Maintainer::_dispatchRequest(request_type & request, Response & response)
 		if (Maintainer::_methods_names[i] == ft::toLower(request.getOnlyValue("method")))
 			break ;
 
-	PTR_FUNC(i)(response);
+	PTR_FUNC(i)(request, response);
 }
 
 Maintainer::response_queue &	Maintainer::operator[](int socket)

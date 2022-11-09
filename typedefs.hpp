@@ -5,6 +5,7 @@
 # include <queue>
 # include <utility>
 # include <map>
+# include <set>
 # include <string>
 # include <fstream>
 
@@ -23,8 +24,8 @@ struct Location
 	typedef std::map<std::string, Location>	locations_type;
 
 	std::string					root;
-	std::vector<std::string>	indexes;
-	std::vector<std::string>	methods;
+	std::set<std::string>		indexes;
+	std::set<std::string>		methods;
 	std::string					redir;
 	std::string					e_is_dir;
 	std::map<int, std::string>	error_pages;
@@ -36,13 +37,13 @@ struct ServerSettings
 {
 	typedef std::pair<std::string, std::string>		host_port_type;
 	typedef	std::pair<host_port_type, int>			listen_params_type;
-	typedef	std::vector<listen_params_type>			hosts_ports_type;
+	typedef	std::set<listen_params_type>			hosts_ports_type;
 
 	static std::vector<std::string>	supported_protos;
 
-	std::vector<std::string>	server_names;
-	Location					def_settings;
-	hosts_ports_type			host_port;
+	std::set<std::string>	server_names;
+	Location				def_settings;
+	hosts_ports_type		host_port;
 };
 
 #endif

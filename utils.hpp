@@ -39,8 +39,10 @@ namespace ft
 	std::string		trim(std::string const & str);
 	splited_string	split(std::string const & str, std::string delimiters = SPACES, bool ignore_quotes = false);
 	std::string		toLower(std::string const & str);
+	std::string		toUpper(std::string const & str);
 	key_value_type	splitHeader(std::string const & str, std::string const & separators);
 	bool			isDirectory(std::string const & filename);
+	bool			exist(std::string const & filename);
 	void			readConfFile(std::ifstream & conf_file, std::string & line);
 	size_t			removePrefixB(std::string const & size);
 	std::string		returnLine(std::string const & line);

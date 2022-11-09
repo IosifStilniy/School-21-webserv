@@ -60,7 +60,7 @@ class MethodException : public LocationException
 {
 	public:
 		MethodException(Response const & ref, std::string const & method, std::string const & txt)
-			: LocationException(ref, "method: " + method + ": " + txt)
+			: LocationException(ref, "method: " + method + ": ")
 		{
 			this->_msg.append(txt);
 		}

@@ -92,17 +92,22 @@ void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 	if (!location.root.empty() && location.root.back() != '/')
 		location.root.push_back('/');
 
-	location.indexes = ft::split(p_location.params["indexes"]);
-	if (location.indexes[0].empty())
-		location.indexes.clear();
+	ft::splited_string	splited = ft::split(p_location.params["indexes"]);
 
-	location.methods = ft::split(p_location.params["allow_methods"]);
-	if (location.methods[0].empty())
-		location.methods.clear();
+	if (!splited[0].empty())
+		location.indexes = std::set<std::string>(splited.begin(), splited.end());
+
+	splited = ft::split(p_location.params["allow_methods"]);
+	if (!splited[0].empty())
+		for (ft::splited_string::const_iterator method = splited.begin(); method != splited.end(); method++)
+			location.methods.insert(ft::toLower(*method));
 
 	location.redir = ft::split(p_location.params["redirect"]).back();
 	location.e_is_dir = ft::split(p_location.params["if_request_is_dir"]).back();
 	location.buf_size = ft::removePrefixB(ft::split(p_location.params["client_body_size"]).back());
+
+	if (!location.buf_size)
+		location.buf_size = std::numeric_limits<size_t>::max();
 
 	this->_bindErrorPages(p_location.params["error_page"], location.error_pages);
 
@@ -115,7 +120,10 @@ void	Meta::_prepareServer(ParsedEntity & p_server, Server::Settings & server)
 	if (p_server.locations.empty())
 		throw std::logic_error("server must have at least 1 location");
 
-	server.server_names = ft::split(p_server.params["server_names"]);
+	ft::splited_string	server_names = ft::split(p_server.params["server_names"]);
+	
+	if (!server_names[0].empty())
+		server.server_names = std::set<std::string>(server_names.begin(), server_names.end());
 
 	ft::splited_string	hosts_ports = ft::split(p_server.params["listen"]);
 	ft::key_value_type	host_port;
@@ -137,7 +145,7 @@ void	Meta::_prepareServer(ParsedEntity & p_server, Server::Settings & server)
 		if (backlog < 1)
 			backlog = DEF_BACKLOG;
 			
-		server.host_port.push_back(std::make_pair(host_port, backlog));
+		server.host_port.insert(std::make_pair(host_port, backlog));
 	}
 	
 	this->_prepareLocation(p_server, server.def_settings);

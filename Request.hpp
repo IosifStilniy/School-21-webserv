@@ -52,8 +52,17 @@ class Request
 		void	printOptions(header_values_params const & options, int indent = 0);
 
 		template <typename T>
-		void	printOptions(std::map<std::string, T> const & options, int indent = 0)
+		void	printOptions(std::map<std::string, T> const & options = std::map<std::string, T>(), int indent = 0)
 		{
+			if (options.empty() && this->options.empty())
+				return ;
+
+			if (options.empty())
+			{
+				this->printOptions(this->options);
+				return ;
+			}
+			
 			for (typename std::map<std::string, T>::const_iterator start = options.begin(); start != options.end(); start++)
 			{
 				std::cout.width(indent);

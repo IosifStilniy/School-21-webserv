@@ -52,8 +52,8 @@ class RequestCollector
 	private:
 		static const std::string	_eof;
 
-		socket_map	_sockets;
-		byte_type	_buf[BUFSIZE];
+		socket_map			_sockets;
+		byte_type *			_buf;
 		const std::string &	_ref_eof;
 
 		template <typename Iterator>
