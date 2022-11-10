@@ -232,11 +232,8 @@ void	Meta::_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & lin
 			ft::splited_string	splited_loc = ft::split(key_params.second);
 
 			if (splited_loc.size() != 2 || splited_loc[1] != "{")
-				THROW_UNEXP_LINE(line_counter, line, ": location keyword line must be kind of 'location /[path] {', that is");
+				THROW_UNEXP_LINE(line_counter, line, ": location keyword line must be kind of 'location [path] {', that is");
 			
-			if (*splited_loc[0].begin() != '/' || *(splited_loc[0].end() - 1) != '/')
-				THROW_UNEXP_LINE(line_counter, line, ": path must start with /");
-
 			this->_parseBlock(conf, entity.locations[splited_loc[0]], line_counter);
 		}
 		else

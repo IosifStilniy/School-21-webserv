@@ -243,6 +243,56 @@ void	Response::_checkLocation(Request & request)
 	}
 }
 
+void	Response::_getEndPointLocation(Location::locations_type & locations)
+{
+	std::string 	loc_path;
+	Location *		founded = nullptr;
+	size_t			length = 0;
+
+	for (Location::locations_type::iterator start = locations.begin(); start != locations.end(); start++)
+	{
+		if (start->first.front() == '/' || length > start->first.size()
+			|| std::search(this->mounted_path.rbegin(), this->mounted_path.rend(), start->first.rbegin(), start->first.rend()) != this->mounted_path.rbegin())
+			continue ;
+		
+		loc_path = start->first;
+		founded = &start->second;
+		length = start->first.size();
+	}
+
+	if (!founded)
+		return ;
+	
+	this->path_location = std::make_pair(loc_path, founded);
+}
+
+void	_getMidPointLocation(Location::locations_type & locations, std::string const & path)
+{
+	std::string 	loc_path;
+	Location *		founded = nullptr;
+	size_t			length = 0;
+	
+	for (Location::locations_type::iterator start = locations.begin(); start != locations.end(); start++)
+	{
+		if ((path == start->first)
+			|| (start->first.front() != '/' && std::search(path.rbegin(), path.rend(), start->first.rbegin(), start->first.rend()) == path.rbegin()))
+		{
+			loc_path = start->first;
+			founded = &start->second;
+			break ;
+		}
+
+		if (path.find(start->first) != 0 || length > start->first.size())
+			continue ;
+		
+		loc_path = start->first;
+		founded = &start->second;
+		length = start->first.size();
+	}
+
+	if (!founded)
+}
+
 void	Response::_getLocation(Location::locations_type & locations, Request & request)
 {
 	std::string 		loc_path;
@@ -252,6 +302,14 @@ void	Response::_getLocation(Location::locations_type & locations, Request & requ
 
 	for (Location::locations_type::iterator start = locations.begin(); start != locations.end(); start++)
 	{
+		if ((path == start->first)
+			|| (start->first.front() != '/' && std::search(path.rbegin(), path.rend(), start->first.rbegin(), start->first.rend()) == path.rbegin()))
+		{
+			loc_path = start->first;
+			founded = &start->second;
+			break ;
+		}
+
 		if (path.find(start->first) != 0 || length > start->first.size())
 			continue ;
 		
@@ -270,7 +328,13 @@ void	Response::_getLocation(Location::locations_type & locations, Request & requ
 		this->_getLocation(founded->locations, request);
 
 	if (this->path_location.second)
+	{
+		if (this->path_location.first.front() != '/')
+			return ;
+		
+		this->_getEndPointLocation(locations);
 		return ;
+	}
 	
 	this->path_location = std::make_pair(loc_path, founded);
 
@@ -280,6 +344,8 @@ void	Response::_getLocation(Location::locations_type & locations, Request & requ
 		root = &this->settings->def_settings.root;
 
 	this->mounted_path = ft::replaceBytesOnce(path, loc_path, *root);
+
+	this->_getEndPointLocation(locations);
 
 	this->_checkLocation(request);
 }

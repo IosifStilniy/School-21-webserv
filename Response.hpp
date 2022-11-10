@@ -63,6 +63,8 @@ class Response
 	private:
 		void	_getSettings(Request & request, std::vector<ServerSettings> & settings);
 		void	_getLocation(Location::locations_type & locations, Request & request);
+		void	_getEndPointLocation(Location::locations_type & locations);
+		void	_getMidPointLocation(Location::locations_type & locations);
 		void	_checkGetPath(void);
 		void	_checkPostPath(void);
 		void	_listIndexes(void);
