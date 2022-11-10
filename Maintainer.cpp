@@ -17,8 +17,8 @@ Maintainer::Maintainer(std::vector<ServerSettings> & settings)
 	: _settings(settings)
 {
 	this->_methods[0] = &Maintainer::_get;
-	// this->_methods[1] = &Maintainer::_post;
-	// this->_methods[2] = &Maintainer::_delete;
+	this->_methods[1] = &Maintainer::_post;
+	this->_methods[2] = &Maintainer::_delete;
 }
 
 Maintainer::~Maintainer()
@@ -29,10 +29,6 @@ void	Maintainer::_get(Request & request, Response & response)
 {
 	response.readFile();
 	
-	std::cout << "chunks: " << response.chunks.size() << std::endl;
-	std::cout << "chunk size: " << response.chunks.front().size() << std::endl;
-	std::cout << "response status: " << response.status << std::endl;
-	std::cout << "response good: " << response.polls.isGood(response.in) << std::endl;
 	if (response.status)
 		return ;
 
@@ -68,11 +64,20 @@ void	Maintainer::_post(request_type & request, Response & response)
 {
 	response.writeFile(request.chunks);
 
-	if (!response.polls.isGood(response.out))
+	if (response.status)
+		return ;
+	
+	if (response.polls.isGood(response.out))
+		return ;
+
+	if ((!request.chunks.empty() || request.chunks.front().empty()))
 	{
 		response.badResponse(500);
 		return ;
 	}
+
+	close(response.out);
+	response.out = -1;
 
 	response.status = 201;
 }

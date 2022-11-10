@@ -26,11 +26,11 @@ struct Location
 	std::string					root;
 	std::set<std::string>		indexes;
 	std::set<std::string>		methods;
-	std::string					redir;
+	std::pair<int, std::string>	redir;
 	std::string					e_is_dir;
 	std::map<int, std::string>	error_pages;
 	locations_type				locations;
-	size_t						buf_size;
+	size_t						size_limit;
 };
 
 struct ServerSettings

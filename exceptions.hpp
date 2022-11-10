@@ -66,4 +66,14 @@ class MethodException : public LocationException
 		}
 };
 
+class SizeLimitException : public LocationException
+{
+	public:
+		SizeLimitException(Response const & ref, std::string const & request_size)
+			: LocationException(ref, "size limit excessed: ")
+		{
+			this->_msg.append(request_size + "/" + ft::num_to_string(this->_ref.path_location.second->size_limit) + " B");
+		}
+};
+
 #endif

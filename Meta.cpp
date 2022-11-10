@@ -94,7 +94,9 @@ void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 
 	ft::splited_string	splited = ft::split(p_location.params["indexes"]);
 
-	if (!splited[0].empty())
+	if (splited[0] == "off")
+		location.indexes.insert(std::string());
+	else if (!splited[0].empty())
 		location.indexes = std::set<std::string>(splited.begin(), splited.end());
 
 	splited = ft::split(p_location.params["allow_methods"]);
@@ -102,12 +104,20 @@ void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 		for (ft::splited_string::const_iterator method = splited.begin(); method != splited.end(); method++)
 			location.methods.insert(ft::toLower(*method));
 
-	location.redir = ft::split(p_location.params["redirect"]).back();
-	location.e_is_dir = ft::split(p_location.params["if_request_is_dir"]).back();
-	location.buf_size = ft::removePrefixB(ft::split(p_location.params["client_body_size"]).back());
+	splited = ft::split(p_location.params["redirect"]);
+	location.redir = std::make_pair(0, "");
+	if (splited.size() > 1)
+	{
+		location.redir.second = splited.back();
+		splited.pop_back();
+		location.redir.first = strtoul(splited.back().c_str(), NULL, 10);
+	}
 
-	if (!location.buf_size)
-		location.buf_size = std::numeric_limits<size_t>::max();
+	location.e_is_dir = ft::split(p_location.params["if_request_is_dir"]).back();
+	location.size_limit = ft::removePrefixB(ft::split(p_location.params["client_body_size"]).back());
+
+	if (!location.size_limit)
+		location.size_limit = std::numeric_limits<size_t>::max();
 
 	this->_bindErrorPages(p_location.params["error_page"], location.error_pages);
 
@@ -154,12 +164,10 @@ void	Meta::_prepareServer(ParsedEntity & p_server, Server::Settings & server)
 
 void	Meta::_checkLocations(Location const & def_loc, Server::locations_type const & locations)
 {
-	bool	def_root_not_exist = (def_loc.root.empty());
-
 	for (Server::locations_type::const_iterator it = locations.begin(); it != locations.end(); it++)
 	{
-		if (it->second.root.empty() && def_root_not_exist)
-			throw std::logic_error("location '" + it->first + "': location must have root");
+		if (it->second.redir.second.empty() && it->second.root.empty() && def_loc.root.empty())
+			throw std::logic_error("location '" + it->first + "': location must have root or redirection");
 		
 		if (!it->second.locations.empty())
 			this->_checkLocations(def_loc, it->second.locations);

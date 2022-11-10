@@ -92,7 +92,12 @@ void	Response::readFile(std::string const & file_path)
 void	Response::writeFile(Request::chunks_type & chunks)
 {
 	if (chunks.empty() || chunks.front().empty())
+	{
+		close(this->out);
+		this->out = -1;
+
 		return ;
+	}
 
 	if (this->out == -1)
 		this->out = open(this->mounted_path.c_str(), O_WRONLY | O_TRUNC | O_NONBLOCK);
@@ -109,16 +114,10 @@ void	Response::writeFile(Request::chunks_type & chunks)
 	if (!this->polls.isReady(this->out))
 		return ;
 
-	while (!chunks.empty() || !chunks.front().empty())
-	{
-		Request::bytes_type &	chunk = chunks.front();
+	Request::bytes_type &	chunk = chunks.front();
 
-		write(this->out, &chunk[0], chunk.size());
-		chunks.pop();
-	}
-
-	close(this->out);
-	this->out = -1;
+	write(this->out, &chunk[0], chunk.size());
+	chunks.pop();
 }
 
 std::string const &	Response::chooseErrorPageSource(void)
@@ -163,8 +162,8 @@ void	Response::badResponse(int status, std::string error_page)
 
 void	Response::redirect(void)
 {
-	this->status = 300;
-	this->options["Location"] = this->path_location.second->redir;
+	this->status = this->path_location.second->redir.first;
+	this->options["Location"] = this->path_location.second->redir.second;
 	this->options["Server"] = "webserv/0.1";
 }
 
@@ -235,6 +234,12 @@ void	Response::_checkLocation(Request & request)
 		this->badResponse(405);
 
 		throw MethodException(*this, request.getOnlyValue(METHOD), "method not allowed");
+	}
+
+	if (strtoul(request.getOnlyValue("Content-Length").c_str(), NULL, 10) > this->path_location.second->size_limit)
+	{
+		this->badResponse(413);
+		throw SizeLimitException(*this, request.getOnlyValue("Content-Length"));
 	}
 }
 
@@ -369,7 +374,7 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 		this->_getSettings(request, settings_collection);
 		this->_getLocation(this->settings->def_settings.locations, request);
 
-		if (!this->path_location.second->redir.empty())
+		if (!this->path_location.second->redir.second.empty())
 		{
 			this->redirect();
 			return ;

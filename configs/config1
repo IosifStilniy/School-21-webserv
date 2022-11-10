@@ -5,8 +5,14 @@ server {
 
 	location / {
 		root			www/root/
+
+		indexes			index.html
 		
 		allow_methods	get
+	}
+
+	location /popa/ {
+		redirect 		308 /
 	}
 
 	location /content/ {
