@@ -5,6 +5,7 @@ static std::vector<std::string>	methodsNameInit(void)
 	std::vector<std::string>	methods;
 
 	methods.push_back("get");
+	methods.push_back("put");
 	methods.push_back("post");
 	methods.push_back("delete");
 
@@ -17,8 +18,9 @@ Maintainer::Maintainer(std::vector<ServerSettings> & settings)
 	: _settings(settings)
 {
 	this->_methods[0] = &Maintainer::_get;
-	this->_methods[1] = &Maintainer::_post;
-	this->_methods[2] = &Maintainer::_delete;
+	this->_methods[1] = &Maintainer::_put;
+	this->_methods[2] = &Maintainer::_post;
+	this->_methods[3] = &Maintainer::_delete;
 }
 
 Maintainer::~Maintainer()
@@ -27,6 +29,20 @@ Maintainer::~Maintainer()
 
 void	Maintainer::_get(Request & request, Response & response)
 {
+	if (!response.inited)
+	{
+		response.inited = true;
+		try
+		{
+			response.checkGetPath();
+		}
+		catch(const std::exception& e)
+		{
+			std::cerr << e.what() << '\n';
+			return ;
+		}
+	}
+
 	response.readFile();
 	
 	if (response.status)
@@ -60,8 +76,22 @@ void	Maintainer::_get(Request & request, Response & response)
 	response.status = 200;
 }
 
-void	Maintainer::_post(request_type & request, Response & response)
+void	Maintainer::_put(request_type & request, Response & response)
 {
+	if (!response.inited)
+	{
+		response.inited = true;
+		try
+		{
+			response.checkPutPath();
+		}
+		catch(const std::exception& e)
+		{
+			std::cerr << e.what() << '\n';
+			return ;
+		}
+	}
+
 	response.writeFile(request.chunks);
 
 	if (response.status)
@@ -70,7 +100,7 @@ void	Maintainer::_post(request_type & request, Response & response)
 	if (response.polls.isGood(response.out))
 		return ;
 
-	if ((!request.chunks.empty() || request.chunks.front().empty()))
+	if ((!request.chunks.empty() && !request.chunks.front().empty()))
 	{
 		response.badResponse(500);
 		return ;
@@ -80,11 +110,38 @@ void	Maintainer::_post(request_type & request, Response & response)
 	response.out = -1;
 
 	response.status = 201;
+	response.options["Location"] = request.getOnlyValue(CONTENT_PATH);
+}
+
+void	Maintainer::_post(request_type & request, Response & response)
+{
+	if (!request.options["Content-Length"].empty())
+	{
+		this->_put(request, response);
+		return ;
+	}
+
+	if (response.status)
+		return ;
+	
+	response.status = 200;
 }
 
 void	Maintainer::_delete(request_type & request, Response & response)
 {
 	static_cast<void>(request);
+
+	if (response.mounted_path == response.path_location->second.root)
+	{
+		response.badResponse(403, response.chooseErrorPageSource());
+		return ;
+	}
+
+	if (!ft::exist(response.mounted_path))
+	{
+		response.badResponse(404);
+		return ;
+	}
 
 	if (std::remove(response.mounted_path.c_str()))
 	{

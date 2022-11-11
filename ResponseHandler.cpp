@@ -16,6 +16,10 @@ std::string	ResponseHandler::_formHeader(header_fields & options, int status)
 	for (header_fields::const_iterator start = options.begin(); start != options.end(); start++)
 		if (!start->second.empty())
 			header.append(start->first + ": " + start->second + NL);
+
+	if (options["Content-Length"].empty())
+		header.append("Content-Length: 0" + std::string(NL));
+
 	header.append(NL);
 
 	options.clear();
@@ -61,6 +65,7 @@ void	ResponseHandler::giveResponse(Maintainer::response_queue & resp_queue, int 
 		}
 
 		send(socket, &chunk[0], chunk.size(), 0);
+
 		resp_queue.front().chunks.pop_front();
 
 		if (response.trans_mode == Response::tChunked)

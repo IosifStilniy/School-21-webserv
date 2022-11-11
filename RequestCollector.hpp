@@ -26,6 +26,7 @@
 
 # ifndef BUFSIZE
 #  define BUFSIZE KB(4)
+// #  define BUFSIZE 4
 # endif
 
 # ifndef HTTP_EOF
@@ -62,6 +63,7 @@ class RequestCollector
 			return (std::search(begin, end, this->_ref_eof.begin(), this->_ref_eof.end()));
 		};
 
+		byte_type *	_readHeader(Request & request, byte_type * msg_start, byte_type * msg_end);
 		byte_type *	_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end);
 		bool		_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start, byte_type * msg_end);
 		bool		_transferEnded(byte_type * & msg_start, size_t dstnc);

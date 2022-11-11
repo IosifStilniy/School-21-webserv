@@ -83,7 +83,10 @@ bool	Request::isFullyReceived(void)
 		&& (this->transfer_encoding.find("chunked") != this->transfer_encoding.end()))
 		|| (this->content_length && this->content_length == this->chunks.front().size())
 	)
+	{
+		this->is_ready = true;
 		return (true);
+	}
 
 	return (false);
 }

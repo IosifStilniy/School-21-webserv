@@ -24,12 +24,12 @@ class Response
 		enum connection {cStd, cKeep_alive, cClose};
 		enum transfering {tStd, tChunked};
 
-		typedef ByteTypes::byte_type				byte_type;
-		typedef	ByteTypes::bytes_type				bytes_type;
-		typedef std::list<bytes_type>				chunks_type;
-		typedef ByteTypes::bytes_iterator			bytes_iterator;
-		typedef std::map<std::string, std::string>	header_fields;
-		typedef	std::pair<std::string, Location *>	path_location_type;
+		typedef ByteTypes::byte_type						byte_type;
+		typedef	ByteTypes::bytes_type						bytes_type;
+		typedef std::list<bytes_type>						chunks_type;
+		typedef ByteTypes::bytes_iterator					bytes_iterator;
+		typedef std::map<std::string, std::string>			header_fields;
+		typedef	std::pair<const std::string, Location> *	path_location_type;
 
 		chunks_type		chunks;
 		header_fields	options;
@@ -64,9 +64,7 @@ class Response
 		void	_getSettings(Request & request, std::vector<ServerSettings> & settings);
 		void	_getLocation(Location::locations_type & locations, Request & request);
 		void	_getEndPointLocation(Location::locations_type & locations);
-		void	_getMidPointLocation(Location::locations_type & locations);
-		void	_checkGetPath(void);
-		void	_checkPostPath(void);
+		path_location_type	_getMidPointLocation(Location::locations_type & locations, std::string const & path);
 		void	_listIndexes(void);
 		void	_checkSettings(Request & request);
 		void	_checkLocation(Request & request);
@@ -81,6 +79,8 @@ class Response
 		void				redirect(void);
 		std::string const &	chooseErrorPageSource(void);
 		std::string const &	chooseErrorPageSource(int status);
+		void				checkGetPath(void);
+		void				checkPutPath(void);
 };
 
 #endif

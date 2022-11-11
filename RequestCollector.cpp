@@ -107,42 +107,46 @@ bool	RequestCollector::_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start
 	return (true);
 }
 
-RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end)
+RequestCollector::byte_type *	RequestCollector::_readHeader(Request & request, byte_type * msg_start, byte_type * msg_end)
 {
 	byte_type *		eof = this->_getEOF(msg_start, msg_end);
 	chunks_type &	chunks = request.chunks;
+
+	if (this->_isSplitedEOF(chunks.front(), msg_start, msg_end))
+	{
+		request.parseHeader();
+		chunks.front().clear();
+		return (msg_start);
+	}
+
+	chunks.front().insert(chunks.front().end(), msg_start, eof);
+
+	if (eof != msg_end)
+	{
+		request.parseHeader();
+		chunks.front().clear();
+	}
+
+	msg_start = eof + this->_ref_eof.size();
+
+	return (msg_start);
+}
+
+RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end)
+{
+	chunks_type &	chunks = request.chunks;
 	size_t			dstnc;
 
-	while (!request.isFullyReceived() && msg_start < msg_end)
+	while (request.options.empty() && msg_start < msg_end)
+		msg_start = this->_readHeader(request, msg_start, msg_end);
+	
+	while (!request.options.empty() && !request.isFullyReceived() && msg_start < msg_end)
 	{
-		if (request.options.empty())
-		{
-			if (this->_isSplitedEOF(chunks.front(), msg_start, msg_end))
-			{
-				request.parseHeader();
-				chunks.front().clear();
-				eof = this->_getEOF(msg_start, msg_end);
-				continue ;
-			}
-
-			chunks.front().insert(chunks.front().end(), msg_start, eof);
-
-			if (eof != msg_end)
-			{
-				request.parseHeader();
-				chunks.front().clear();
-			}
-
-			msg_start = eof + this->_ref_eof.size();
-			eof = this->_getEOF(msg_start, msg_end);
-
-			continue ;
-		}
-
 		if (request.transfer_encoding.find("chunked") != request.transfer_encoding.end())
 			return (this->_chunkedTransferHandler(request, msg_start, msg_end));
 
 		dstnc = msg_end - msg_start;
+
 		if (chunks.front().size() + dstnc > request.content_length)
 			dstnc = request.content_length - chunks.front().size();
 		chunks.front().insert(chunks.front().end(), msg_start, msg_start + dstnc);

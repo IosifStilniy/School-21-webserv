@@ -40,7 +40,7 @@ class LocationException : public BadRequestException
 {
 	public:
 		LocationException(Response const & ref, std::string const & txt)
-			: BadRequestException(ref, "location: " + ref.path_location.first + ": ")
+			: BadRequestException(ref, "location: " + ref.path_location->first + ": ")
 		{
 			this->_msg.append(txt);
 		};
@@ -72,7 +72,7 @@ class SizeLimitException : public LocationException
 		SizeLimitException(Response const & ref, std::string const & request_size)
 			: LocationException(ref, "size limit excessed: ")
 		{
-			this->_msg.append(request_size + "/" + ft::num_to_string(this->_ref.path_location.second->size_limit) + " B");
+			this->_msg.append(request_size + "/" + ft::num_to_string(this->_ref.path_location->second.size_limit) + " B");
 		}
 };
 

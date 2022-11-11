@@ -50,6 +50,9 @@ namespace ft
 	template <typename Number>
 	std::string	num_to_string(Number num)
 	{
+		if (!num)
+			return (std::string("0"));
+
 		std::string	str;
 		bool		sign = (num < 0);
 
@@ -172,6 +175,19 @@ namespace ft
 		Container 	cont;
 		containerazeConfFile(cont, filename, func);
 		return (cont);
+	}
+
+	template <typename Container>
+	char * const *	containerToArray(Container const & cont)
+	{
+		const char **	arr = reinterpret_cast<const char **>(malloc(sizeof(*arr) * (cont.size() + 1)));
+		const char **	crsr = arr;
+
+		for (typename Container::const_iterator string = cont.begin(); string != cont.end(); string++, crsr++)
+			*crsr = string->c_str();
+		crsr = NULL;
+
+		return (const_cast<char * const *>(arr));
 	}
 }
 
