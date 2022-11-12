@@ -25,6 +25,8 @@
 class Request
 {
 	public:
+		enum transfering {tStd, tChunked};
+
 		typedef ByteTypes::byte_type						byte_type;
 		typedef	ByteTypes::bytes_type						bytes_type;
 		typedef ByteTypes::chunks_type						chunks_type;
@@ -37,8 +39,8 @@ class Request
 		chunks_type		chunks;
 		header_fields	options;
 		size_t			content_length;
-		header_values	transfer_encoding;
 		bool			is_ready;
+		transfering		tr_state;
 
 		Request(void);
 
@@ -48,18 +50,18 @@ class Request
 		std::string const &	getOnlyValue(std::string const & field);
 		std::string const &	getOnlyValue(header_fields::iterator field);
 		void				setValues(ft::key_value_type const & key_value);
+		bool				empty(void);
 
 		void	printOptions(header_values_params const & options, int indent = 0);
 
 		template <typename T>
 		void	printOptions(std::map<std::string, T> const & options = std::map<std::string, T>(), int indent = 0)
 		{
-			if (options.empty() && this->options.empty())
-				return ;
-
 			if (options.empty())
 			{
-				this->printOptions(this->options);
+				if (!this->options.empty())
+					this->printOptions(this->options);
+
 				return ;
 			}
 			

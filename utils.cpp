@@ -96,7 +96,7 @@ namespace ft
 		return (key_value);
 	}
 
-	splited_string	split(std::string const & str, std::string delimiters, bool ignore_quotes)
+	splited_string	split(std::string const & str, std::string const & delimiters, bool ignore_quotes)
 	{
 		std::queue<t_quots>				quots_lst;
 		splited_string					splited;
@@ -115,6 +115,41 @@ namespace ft
 			}
 			else if (delimiters.find(*end) == std::string::npos || isQuoted(end, quots_lst))
 				++end;
+			else
+			{
+				splited.push_back(std::string(begin, end));
+				begin = end;
+			}
+		}
+
+		if (begin != end)
+			splited.push_back(std::string(begin, end));
+		
+		if (splited.empty())
+			splited.push_back(std::string());
+
+		return (splited);
+	}
+
+	splited_string	splitByComplexDelimeter(std::string const & str, std::string const &  delimiter, bool ignore_quotes)
+	{
+		std::queue<t_quots>					quots_lst;
+		splited_string						splited;
+		std::string::const_iterator			begin = str.begin();
+		std::string::const_iterator			end = str.begin();
+
+		if (!ignore_quotes)
+			quots_lst = fillQuots(str);
+
+		while (end < str.end())
+		{
+			if (!isQuoted(end, quots_lst) && std::search(begin, str.end(), delimiter.begin(), delimiter.end()) == begin)
+			{
+				begin += delimiter.size();
+				end += delimiter.size();
+			}
+			else if (std::search(end, str.end(), delimiter.begin(), delimiter.end()) != end || isQuoted(end, quots_lst))
+				end++;
 			else
 			{
 				splited.push_back(std::string(begin, end));

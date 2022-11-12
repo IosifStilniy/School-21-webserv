@@ -2,6 +2,7 @@
 #include <iostream>
 
 const std::string RequestCollector::_eof(HTTP_EOF);
+const std::string RequestCollector::_nl("\r\n");
 
 RequestCollector::RequestCollector(void)
 	: _buf(new byte_type[BUFSIZE]), _ref_eof(RequestCollector::_eof)
@@ -11,71 +12,6 @@ RequestCollector::RequestCollector(void)
 RequestCollector::~RequestCollector()
 {
 	delete [] this->_buf;
-}
-
-bool	RequestCollector::_transferEnded(byte_type * & msg_start, size_t dstnc)
-{
-	static std::string	tail = "";
-	bool				result = false;
-
-	if (dstnc < this->_ref_eof.size())
-	{
-		tail.assign(msg_start, msg_start + dstnc);
-		return (false);
-	}
-
-	std::string	ref = tail;
-
-	dstnc = this->_ref_eof.size() - tail.size();
-	ref.append(msg_start, msg_start + dstnc);
-	result = (ref == this->_ref_eof);
-
-	if (result)
-		msg_start += ref.size() - tail.size();
-	else
-		msg_start += 2 - tail.size();
-
-	tail.clear();
-	return (result);
-}
-
-RequestCollector::byte_type *	RequestCollector::_chunkedTransferHandler(Request & request, byte_type * msg_start, byte_type * msg_end)
-{
-	// byte_type *		eof = this->_getEOF(msg_start, msg_end);
-	chunks_type &	chunks = request.chunks;
-	static size_t	chunk_size = 0;
-	size_t			dstnc;
-
-	while (msg_start < msg_end)
-	{
-		dstnc = chunk_size;
-		if (dstnc > static_cast<size_t>(msg_end - msg_start))
-			dstnc = msg_end - msg_start;
-		chunks.back().insert(chunks.back().end(), msg_start, msg_start + dstnc);
-		msg_start += dstnc;
-		chunk_size -= dstnc;
-
-		if (chunk_size)
-			continue ;
-
-		chunks.push(bytes_type());
-
-		if (_transferEnded(msg_start, msg_end - msg_start))
-		{
-			chunk_size = 0;
-			return (msg_start);
-		}
-		
-		chunk_size = strtoul(std::string(
-												msg_start,
-												std::search(
-														msg_start, msg_end,
-														this->_ref_eof.begin(), this->_ref_eof.begin() + 2
-												)
-											).c_str(), &msg_start, 10);
-	}
-
-	return (msg_start);
 }
 
 bool	RequestCollector::_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start, byte_type * msg_end)
@@ -112,19 +48,21 @@ RequestCollector::byte_type *	RequestCollector::_readHeader(Request & request, b
 	byte_type *		eof = this->_getEOF(msg_start, msg_end);
 	chunks_type &	chunks = request.chunks;
 
-	if (this->_isSplitedEOF(chunks.front(), msg_start, msg_end))
+	if (this->_isSplitedEOF(chunks.back(), msg_start, msg_end))
 	{
 		request.parseHeader();
-		chunks.front().clear();
+		chunks.pop();
 		return (msg_start);
 	}
 
-	chunks.front().insert(chunks.front().end(), msg_start, eof);
+	chunks.back().insert(chunks.back().end(), msg_start, eof);
 
 	if (eof != msg_end)
 	{
+		std::cout << "raw:" << std::endl;
+		std::cout << std::string(request.chunks.front().begin(), request.chunks.front().end()) << std::endl;
 		request.parseHeader();
-		chunks.front().clear();
+		chunks.pop();
 	}
 
 	msg_start = eof + this->_ref_eof.size();
@@ -132,26 +70,63 @@ RequestCollector::byte_type *	RequestCollector::_readHeader(Request & request, b
 	return (msg_start);
 }
 
+RequestCollector::byte_type *	RequestCollector::_getChunkSize(Request & request, byte_type * msg_start, byte_type * msg_end)
+{
+	static std::string	tail;
+	byte_type *			spliter = std::search(msg_start, msg_end, RequestCollector::_nl.begin(), RequestCollector::_nl.end());
+
+	spliter += static_cast<size_t>(msg_end - spliter) > RequestCollector::_nl.size() ? RequestCollector::_nl.size() : msg_end - spliter;
+
+	tail.append(msg_start, spliter);
+	msg_start = spliter;
+
+	if (tail.substr(0, RequestCollector::_eof.size()).size() == RequestCollector::_eof.size())
+	{
+		request.content_length = 0;
+		request.tr_state = Request::tStd;
+		return (msg_start);
+	}
+
+	if (std::isdigit(tail.back()))
+		return (msg_start);
+
+	request.content_length = strtoul(tail.c_str(), NULL, 10);
+	tail.clear();
+
+	return (msg_start);
+}
+
+RequestCollector::byte_type *	RequestCollector::_readBody(Request & request, byte_type * msg_start, byte_type * msg_end)
+{
+	if (!request.content_length && request.tr_state == Request::tChunked)
+		msg_start = this->_getChunkSize(request, msg_start, msg_end);
+
+	if (!request.content_length)
+		return (msg_start);
+	
+	request.chunks.push(bytes_type());
+
+	bytes_type &	chunk = request.chunks.back();
+
+	size_t	dstnc = msg_end - msg_start;
+
+	if (dstnc > request.content_length)
+		dstnc = request.content_length;
+
+	chunk.insert(chunk.end(), msg_start, msg_start + dstnc);
+	msg_start += dstnc;
+	request.content_length -= dstnc;
+
+	return (msg_start);
+}
+
 RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end)
 {
-	chunks_type &	chunks = request.chunks;
-	size_t			dstnc;
-
 	while (request.options.empty() && msg_start < msg_end)
 		msg_start = this->_readHeader(request, msg_start, msg_end);
 	
 	while (!request.options.empty() && !request.isFullyReceived() && msg_start < msg_end)
-	{
-		if (request.transfer_encoding.find("chunked") != request.transfer_encoding.end())
-			return (this->_chunkedTransferHandler(request, msg_start, msg_end));
-
-		dstnc = msg_end - msg_start;
-
-		if (chunks.front().size() + dstnc > request.content_length)
-			dstnc = request.content_length - chunks.front().size();
-		chunks.front().insert(chunks.front().end(), msg_start, msg_start + dstnc);
-		msg_start += dstnc;
-	}
+		msg_start = this->_readBody(request, msg_start, msg_end);
 
 	return (msg_start);
 }

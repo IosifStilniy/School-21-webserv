@@ -61,20 +61,20 @@ class Response
 		~Response();
 
 	private:
-		void	_getSettings(Request & request, std::vector<ServerSettings> & settings);
-		void	_getLocation(Location::locations_type & locations, Request & request);
-		void	_getEndPointLocation(Location::locations_type & locations);
+		void				_getSettings(Request & request, std::vector<ServerSettings> & settings);
+		void				_getLocation(Location::locations_type & locations, Request & request);
+		void				_getEndPointLocation(Location::locations_type & locations);
 		path_location_type	_getMidPointLocation(Location::locations_type & locations, std::string const & path);
-		void	_listIndexes(void);
-		void	_checkSettings(Request & request);
-		void	_checkLocation(Request & request);
+		void				_listIndexes(void);
+		void				_checkSettings(Request & request);
+		void				_checkLocation(Request & request);
 
 
 	public:
 		void				init(Request & request, std::vector<ServerSettings> & settings_collection);
 		void				readFile(void);
 		void				readFile(std::string const & filepath);
-		void				writeFile(Request::chunks_type & chunks);
+		void				writeFile(Request & request);
 		void				badResponse(int status, std::string error_page = "");
 		void				redirect(void);
 		std::string const &	chooseErrorPageSource(void);

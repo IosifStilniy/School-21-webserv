@@ -37,7 +37,8 @@ namespace ft
 	typedef	std::pair<std::string, std::string>		key_value_type;
 
 	std::string		trim(std::string const & str);
-	splited_string	split(std::string const & str, std::string delimiters = SPACES, bool ignore_quotes = false);
+	splited_string	split(std::string const & str, std::string const & delimiters = SPACES, bool ignore_quotes = false);
+	splited_string	splitByComplexDelimeter(std::string const & str, std::string const & delimiter, bool ignore_quotes = false);
 	std::string		toLower(std::string const & str);
 	std::string		toUpper(std::string const & str);
 	key_value_type	splitHeader(std::string const & str, std::string const & separators);

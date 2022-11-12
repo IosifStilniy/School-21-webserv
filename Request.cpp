@@ -1,7 +1,7 @@
 #include "Request.hpp"
 
 Request::Request(void)
-	: chunks(), options(), content_length(0), transfer_encoding(), is_ready(false)
+	: chunks(), options(), content_length(0), is_ready(false), tr_state(tStd)
 {
 	chunks.push(bytes_type());
 }
@@ -60,35 +60,15 @@ void	Request::parseHeader(void)
 	for (ft::splited_string::iterator start = splited.begin() + 1; start != splited.end(); start++)
 		this->setValues(ft::splitHeader(*start, ":"));
 
-	header_fields::iterator	length = this->options.find("Content-Length");
+	this->content_length = strtoul(this->getOnlyValue("Content-Length").c_str(), NULL, 10);
 
-	if (length != this->options.end())
-		this->content_length = strtoul(this->getOnlyValue(length).c_str(), NULL, 10);
-
-	length = this->options.find("Transfer-Encoding");
-
-	if (length != this->options.end())
-		this->transfer_encoding = length->second;
-	
-	if (!this->content_length || this->transfer_encoding.find("chunked") != this->transfer_encoding.end())
-		this->is_ready = true;
+	if (this->options["Transfer-Encoding"].find("chunked") != this->options["Transfer-Encoding"].end())
+		this->tr_state = tChunked;
 }
 
 bool	Request::isFullyReceived(void)
 {
-	if (this->options.empty())
-		return (false);
-
-	if ((!this->content_length
-		&& (this->transfer_encoding.find("chunked") != this->transfer_encoding.end()))
-		|| (this->content_length && this->content_length == this->chunks.front().size())
-	)
-	{
-		this->is_ready = true;
-		return (true);
-	}
-
-	return (false);
+	return (!this->options.empty() && !this->content_length && this->tr_state == tStd);
 }
 
 void	Request::printOptions(header_values_params const & options, int indent)
@@ -99,4 +79,9 @@ void	Request::printOptions(header_values_params const & options, int indent)
 		std::cout << "";
 		std::cout << start->first << " = " << start->second << std::endl;
 	}
+}
+
+bool	Request::empty(void)
+{
+	return ((this->chunks.empty() || this->chunks.front().empty()) && !this->content_length && this->tr_state == tStd);
 }

@@ -60,7 +60,7 @@ void	Maintainer::_get(Request & request, Response & response)
 			return ;
 
 		if (!response.options["Transfer-Encoding"].empty())
-			response.options["Transfer-Encoding"].append(",");
+			response.options["Transfer-Encoding"].append(", ");
 		response.options["Transfer-Encoding"].append("chunked");
 		response.trans_mode = Response::tChunked;
 		response.status = 200;
@@ -92,7 +92,7 @@ void	Maintainer::_put(request_type & request, Response & response)
 		}
 	}
 
-	response.writeFile(request.chunks);
+	response.writeFile(request);
 
 	if (response.status)
 		return ;
@@ -100,7 +100,7 @@ void	Maintainer::_put(request_type & request, Response & response)
 	if (response.polls.isGood(response.out))
 		return ;
 
-	if ((!request.chunks.empty() && !request.chunks.front().empty()))
+	if (!request.empty())
 	{
 		response.badResponse(500);
 		return ;
@@ -178,7 +178,7 @@ void	Maintainer::proceedRequests(RequestCollector & requests)
 		const int &			socket = start->first;
 		request_queue &		req_queue = start->second;
 
-		if (req_queue.empty() || !req_queue.front().is_ready)
+		if (req_queue.empty() || req_queue.front().options.empty())
 			continue ;
 
 		response_queue &	responses = this->_sockets[socket];
@@ -188,7 +188,7 @@ void	Maintainer::proceedRequests(RequestCollector & requests)
 
 		this->_dispatchRequest(req_queue.front(), responses.back());
 
-		if (!responses.back().status)
+		if (!responses.back().status || responses.back().trans_mode == Response::tChunked)
 			continue ;
 
 		responses.push(Response());

@@ -72,6 +72,10 @@ void	Response::readFile(std::string const & file_path)
 	{
 		::close(this->in);
 		this->in = -1;
+
+		if (this->trans_mode == tChunked)
+			this->trans_mode = tStd;
+
 		return ;
 	}
 
@@ -89,15 +93,19 @@ void	Response::readFile(std::string const & file_path)
 		chunks.push_back(bytes_type(this->spliter, this->end));
 }
 
-void	Response::writeFile(Request::chunks_type & chunks)
+void	Response::writeFile(Request & request)
 {
-	if (chunks.empty() || chunks.front().empty())
+	if (request.chunks.empty() || request.chunks.front().empty())
 	{
-		close(this->out);
-		this->out = -1;
+		if (!request.content_length && request.tr_state == Request::tStd)
+		{
+			close(this->out);
+			this->out = -1;
+		}
 
 		return ;
 	}
+
 
 	if (this->out == -1)
 		this->out = open(this->mounted_path.c_str(), O_WRONLY | O_TRUNC | O_NONBLOCK | O_CREAT, MOD);
@@ -114,11 +122,11 @@ void	Response::writeFile(Request::chunks_type & chunks)
 	if (!this->polls.isReady(this->out))
 		return ;
 
-	Request::bytes_type &	chunk = chunks.front();
+	Request::bytes_type &	chunk = request.chunks.front();
 
 	write(this->out, &chunk[0], chunk.size());
 
-	chunks.pop();
+	request.chunks.pop();
 }
 
 std::string const &	Response::chooseErrorPageSource(void)
