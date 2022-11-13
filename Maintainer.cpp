@@ -92,6 +92,9 @@ void	Maintainer::_put(request_type & request, Response & response)
 		}
 	}
 
+	if (request.tr_state == Request::tChunked && (request.chunks.empty() || request.chunks.front().empty()))
+		return ;
+
 	response.writeFile(request);
 
 	if (response.status)
@@ -131,6 +134,9 @@ void	Maintainer::_delete(request_type & request, Response & response)
 {
 	static_cast<void>(request);
 
+	if (response.status)
+		return ;
+
 	if (response.mounted_path == response.path_location->second.root)
 	{
 		response.badResponse(403, response.chooseErrorPageSource());
@@ -145,6 +151,7 @@ void	Maintainer::_delete(request_type & request, Response & response)
 
 	if (std::remove(response.mounted_path.c_str()))
 	{
+		std::cerr << "remove: " << strerror(errno) << std::endl;
 		response.badResponse(500);
 		return ;
 	}

@@ -39,7 +39,7 @@ class Request
 		chunks_type		chunks;
 		header_fields	options;
 		size_t			content_length;
-		bool			is_ready;
+		bool			is_good;
 		transfering		tr_state;
 
 		Request(void);
@@ -52,19 +52,12 @@ class Request
 		void				setValues(ft::key_value_type const & key_value);
 		bool				empty(void);
 
+		void	printOptions(void);
 		void	printOptions(header_values_params const & options, int indent = 0);
 
 		template <typename T>
-		void	printOptions(std::map<std::string, T> const & options = std::map<std::string, T>(), int indent = 0)
+		void	printOptions(std::map<std::string, T> const & options, int indent = 0)
 		{
-			if (options.empty())
-			{
-				if (!this->options.empty())
-					this->printOptions(this->options);
-
-				return ;
-			}
-			
 			for (typename std::map<std::string, T>::const_iterator start = options.begin(); start != options.end(); start++)
 			{
 				std::cout.width(indent);

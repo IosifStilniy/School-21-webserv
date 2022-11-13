@@ -1,7 +1,7 @@
 #include "Request.hpp"
 
 Request::Request(void)
-	: chunks(), options(), content_length(0), is_ready(false), tr_state(tStd)
+	: chunks(), options(), content_length(0), is_good(true), tr_state(tStd)
 {
 	chunks.push(bytes_type());
 }
@@ -53,6 +53,9 @@ void	Request::parseHeader(void)
 	ft::splited_string	splited = ft::split(std::string(this->chunks.front().begin(), this->chunks.front().end()), "\n");
 	ft::splited_string	splited_line = ft::split(splited[0]);
 
+	if (splited_line.size() != 3)
+		throw std::runtime_error("bad request-line: " + splited[0]);
+
 	this->setValues(std::make_pair(METHOD, ft::toLower(splited_line[0])));
 	this->setValues(std::make_pair(CONTENT_PATH, splited_line[1]));
 	this->setValues(std::make_pair(HTTP_V, splited_line[2]));
@@ -69,6 +72,11 @@ void	Request::parseHeader(void)
 bool	Request::isFullyReceived(void)
 {
 	return (!this->options.empty() && !this->content_length && this->tr_state == tStd);
+}
+
+void	Request::printOptions(void)
+{
+	this->printOptions(this->options);
 }
 
 void	Request::printOptions(header_values_params const & options, int indent)

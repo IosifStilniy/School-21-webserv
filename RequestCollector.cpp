@@ -59,8 +59,6 @@ RequestCollector::byte_type *	RequestCollector::_readHeader(Request & request, b
 
 	if (eof != msg_end)
 	{
-		std::cout << "raw:" << std::endl;
-		std::cout << std::string(request.chunks.front().begin(), request.chunks.front().end()) << std::endl;
 		request.parseHeader();
 		chunks.pop();
 	}
@@ -75,23 +73,32 @@ RequestCollector::byte_type *	RequestCollector::_getChunkSize(Request & request,
 	static std::string	tail;
 	byte_type *			spliter = std::search(msg_start, msg_end, RequestCollector::_nl.begin(), RequestCollector::_nl.end());
 
+	if (spliter == msg_start)
+		spliter = std::search(msg_start + RequestCollector::_nl.size(), msg_end, RequestCollector::_nl.begin(), RequestCollector::_nl.end());
+
+	byte_type *			edge = spliter;
+
 	spliter += static_cast<size_t>(msg_end - spliter) > RequestCollector::_nl.size() ? RequestCollector::_nl.size() : msg_end - spliter;
 
 	tail.append(msg_start, spliter);
 	msg_start = spliter;
 
-	if (tail.substr(0, RequestCollector::_eof.size()).size() == RequestCollector::_eof.size())
+	if (tail.substr(0, RequestCollector::_eof.size()) == RequestCollector::_eof)
 	{
 		request.content_length = 0;
 		request.tr_state = Request::tStd;
+		tail.clear();
 		return (msg_start);
 	}
 
-	if (std::isdigit(tail.back()))
+	if (edge == msg_end)
 		return (msg_start);
 
-	request.content_length = strtoul(tail.c_str(), NULL, 10);
+	request.content_length = strtoul(tail.c_str(), NULL, 16);
 	tail.clear();
+
+	if (!request.content_length)
+		return (this->_getChunkSize(request, edge, msg_end));
 
 	return (msg_start);
 }
@@ -117,6 +124,9 @@ RequestCollector::byte_type *	RequestCollector::_readBody(Request & request, byt
 	msg_start += dstnc;
 	request.content_length -= dstnc;
 
+	if (!request.content_length && request.tr_state == Request::tChunked)
+		msg_start += 2;
+
 	return (msg_start);
 }
 
@@ -127,7 +137,7 @@ RequestCollector::byte_type *	RequestCollector::_splitIncomingStream(Request & r
 	
 	while (!request.options.empty() && !request.isFullyReceived() && msg_start < msg_end)
 		msg_start = this->_readBody(request, msg_start, msg_end);
-
+	
 	return (msg_start);
 }
 
@@ -147,15 +157,23 @@ void	RequestCollector::collect(int socket)
 	byte_type *	crsr = this->_buf;
 	byte_type *	msg_end = this->_buf + recv(socket, this->_buf, BUFSIZE, 0);
 
-	while (crsr < msg_end)
+	try
 	{
-		crsr = this->_splitIncomingStream(*request, crsr, msg_end);
+		while (crsr < msg_end)
+		{
+			crsr = this->_splitIncomingStream(*request, crsr, msg_end);
 
-		if (!request->isFullyReceived())
-			continue ;
+			if (!request->isFullyReceived())
+				continue ;
 
-		requests.push(Request());
-		request = &requests.back();
+			requests.push(Request());
+			request = &requests.back();
+		}
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
+		request->is_good = false;
 	}
 }
 

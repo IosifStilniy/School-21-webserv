@@ -106,7 +106,6 @@ void	Response::writeFile(Request & request)
 		return ;
 	}
 
-
 	if (this->out == -1)
 		this->out = open(this->mounted_path.c_str(), O_WRONLY | O_TRUNC | O_NONBLOCK | O_CREAT, MOD);
 
@@ -147,6 +146,7 @@ void	Response::badResponse(int status, std::string error_page)
 {
 	this->inited = true;
 	this->status = status;
+	this->con_status = cClose;
 
 	::close(this->in);
 	this->in = -1;
@@ -418,6 +418,12 @@ void	Response::checkPutPath(void)
 void	Response::init(Request & request, std::vector<ServerSettings> & settings_collection)
 {
 	this->options["Server"] = "webserv/0.1";
+
+	if (!request.is_good)
+	{
+		this->badResponse(400);
+		return ;
+	}
 
 	try
 	{
