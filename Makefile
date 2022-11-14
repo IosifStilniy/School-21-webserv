@@ -5,7 +5,7 @@ SRCS		=	Polls.cpp				\
 				RequestCollector.cpp	\
 				Response.cpp			\
 				Maintainer.cpp			\
-				ResponseHandler.cpp		\
+				CGI.cpp					\
 				utils.cpp				\
 				webserv.cpp
 

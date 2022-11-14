@@ -4,6 +4,7 @@ server_names
 
 #'location' scope only
 redirect
+cgi
 
 #any inner scope
 root

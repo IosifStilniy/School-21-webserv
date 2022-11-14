@@ -1,9 +1,12 @@
 #include "Request.hpp"
 
+const std::string Request::eof(HTTP_EOF);
+const std::string Request::nl(NL);
+
 Request::Request(void)
 	: chunks(), options(), content_length(0), is_good(true), tr_state(tStd)
 {
-	chunks.push(bytes_type());
+	chunks.push_back(bytes_type());
 }
 
 void	Request::setValues(ft::key_value_type const & field_values)
@@ -92,4 +95,72 @@ void	Request::printOptions(header_values_params const & options, int indent)
 bool	Request::empty(void)
 {
 	return ((this->chunks.empty() || this->chunks.front().empty()) && !this->content_length && this->tr_state == tStd);
+}
+
+Request::byte_type *	Request::getChunkSize(byte_type * msg_start, byte_type * msg_end)
+{
+	byte_type *	spliter = std::search(msg_start, msg_end, Request::nl.begin(), Request::nl.end());
+
+	if (spliter == msg_start)
+		spliter = std::search(msg_start + Request::nl.size(), msg_end, Request::nl.begin(), Request::nl.end());
+
+	byte_type *	edge = spliter;
+
+	spliter += static_cast<size_t>(msg_end - spliter) > Request::nl.size() ? Request::nl.size() : msg_end - spliter;
+
+	this->_tail.append(msg_start, spliter);
+	msg_start = spliter;
+
+	if (this->_tail.substr(0, Request::eof.size()) == Request::eof)
+	{
+		this->content_length = 0;
+		this->tr_state = Request::tStd;
+		this->_tail.clear();
+		return (msg_start);
+	}
+
+	if (edge == msg_end)
+		return (msg_start);
+
+	this->content_length = strtoul(this->_tail.c_str(), NULL, 16);
+	this->_tail.clear();
+
+	if (!this->content_length)
+		return (this->getChunkSize(edge, msg_end));
+
+	return (msg_start);
+}
+
+std::string	Request::formOptionLine(std::string const & field)
+{
+	std::string	line;
+
+	for (header_values::iterator value = this->options[field].begin(); value != this->options[field].end(); value++)
+	{
+		line.append(value->first);
+
+		for (header_values_params::iterator param = value->second.begin(); param != value->second.end(); param++)
+		{
+			line.append(";" + param->first);
+			if (!param->second.empty())
+				line.append("=" + param->second);
+		}
+
+		line.append(",");
+	}
+
+	if (line.back() == ',')
+		line.pop_back();
+	
+	return (line);
+}
+
+size_t	Request::getContentLength(void)
+{
+	size_t	size = 0;
+
+	for (Request::chunks_type::const_iterator chunk = this->chunks.begin(); chunk != this->chunks.end(); chunk++)
+		size += chunk->size();
+	
+	return (size);
 }

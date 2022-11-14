@@ -1,5 +1,6 @@
-#include "webserv.hpp"
 #include <string>
+#include <iostream>
+#include "Meta.hpp"
 
 int	main(int argc, char **argv)
 {
@@ -17,7 +18,7 @@ int	main(int argc, char **argv)
 
 	if (chdir(path.c_str()))
 	{
-		std::cerr << path + ": " + strerror(errno) << std::endl;
+		std::cerr << "chdir: " << path + ": " + strerror(errno) << std::endl;
 		return (1);
 	}
 
@@ -42,10 +43,9 @@ int	main(int argc, char **argv)
 	}
 	catch(const std::exception& e)
 	{
-		std::cerr << "error: " << e.what() << '\n';
+		std::cerr << "error: " << e.what() << std::endl;
 		return (1);
 	}
-	
 	
 	while (1)
 		for (it = meta.servers.begin(); it != meta.servers.end(); it++)

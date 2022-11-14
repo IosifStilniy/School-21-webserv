@@ -244,4 +244,9 @@ namespace ft
 	{
 		return (line);
 	}
+
+	std::string	quoteString(std::string const & string, std::string const & quote)
+	{
+		return (quote + string + quote);
+	}
 };

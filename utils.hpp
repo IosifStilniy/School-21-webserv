@@ -47,6 +47,7 @@ namespace ft
 	void			readConfFile(std::ifstream & conf_file, std::string & line);
 	size_t			removePrefixB(std::string const & size);
 	std::string		returnLine(std::string const & line);
+	std::string		quoteString(std::string const & string, std::string const & quote = "\"");
 
 	template <typename Number>
 	std::string	num_to_string(Number num)

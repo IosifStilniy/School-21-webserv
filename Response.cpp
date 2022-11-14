@@ -79,18 +79,18 @@ void	Response::readFile(std::string const & file_path)
 		return ;
 	}
 
-	this->end = this->buf + length;
-	this->spliter = this->end;
+	byte_type *	end = this->buf + length;
+	byte_type *	spliter = end;
 
 	bytes_type &	chunk = this->chunks.back();
 
 	if (length > this->buf_size - chunk.size())
-		this->spliter = this->buf + this->buf_size - chunk.size();
+		spliter = this->buf + this->buf_size - chunk.size();
 	
-	chunk.insert(chunk.end(), this->buf, this->spliter);
+	chunk.insert(chunk.end(), this->buf, spliter);
 
-	if (this->spliter != this->end)
-		chunks.push_back(bytes_type(this->spliter, this->end));
+	if (spliter != end)
+		chunks.push_back(bytes_type(spliter, end));
 }
 
 void	Response::writeFile(Request & request)
@@ -125,7 +125,7 @@ void	Response::writeFile(Request & request)
 
 	write(this->out, &chunk[0], chunk.size());
 
-	request.chunks.pop();
+	request.chunks.pop_front();
 }
 
 std::string const &	Response::chooseErrorPageSource(void)
@@ -268,7 +268,9 @@ void	Response::_getEndPointLocation(Location::locations_type & locations)
 	for (Location::locations_type::iterator start = locations.begin(); start != locations.end(); start++)
 	{
 		if (start->first.front() == '/' || length > start->first.size()
-			|| this->mounted_path.find(start->first) == std::string::npos)
+			|| this->mounted_path.find(start->first) == std::string::npos
+			|| (this->mounted_path.find(start->first) + start->first.size() != this->mounted_path.size()
+				&& this->mounted_path[this->mounted_path.find(start->first) + start->first.size()] != '/'))
 			continue ;
 		
 		founded = &*start;
@@ -413,6 +415,16 @@ void	Response::checkPutPath(void)
 			throw PathException(*this, strerror(errno));
 		}
 	}
+}
+
+size_t	Response::getContentLength(void)
+{
+	size_t	size = 0;
+
+	for (chunks_type::const_iterator chunk = this->chunks.begin(); chunk != this->chunks.end(); chunk++)
+		size += chunk->size();
+	
+	return (size);
 }
 
 void	Response::init(Request & request, std::vector<ServerSettings> & settings_collection)

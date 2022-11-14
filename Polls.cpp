@@ -140,12 +140,9 @@ bool	Polls::isGood(int socket)	const
 	if (socket < 0)
 		return (false);
 
-	size_t	i = 0;
+	size_t	i = this->getIndex(socket);
 
-	while (i < this->size && this->polls[i].fd != socket)
-		i++;
-
-	if (i == this->size || !this->polls[i].revents || (POLLCLR & this->polls[i].revents))
+	if (i == static_cast<size_t>(-1) || !this->polls[i].revents || (POLLCLR & this->polls[i].revents))
 		return (false);
 
 	return (true);
@@ -153,17 +150,12 @@ bool	Polls::isGood(int socket)	const
 
 bool	Polls::isReady(int socket)	const
 {
-	size_t	i = 0;
+	size_t	i = this->getIndex(socket);
 
-	while (i < this->size && this->polls[i].fd != socket)
-		i++;
-	
-	if (i == this->size)
+	if (i == static_cast<size_t>(-1) || !this->isGoodByIndex(i))
 		return (false);
 
-	if (this->polls[i].events & this->polls[i].revents)
-		return (true);
-	return (this->isGoodByIndex(i));
+	return (this->polls[i].events & this->polls[i].revents);
 }
 
 std::vector<int>	Polls::clear(void)
@@ -180,4 +172,15 @@ std::vector<int>	Polls::clear(void)
 	}
 
 	return (bad_sockets);
+}
+
+void	Polls::purge(void)
+{
+	if (this->polls)
+		delete [] this->polls;
+	this->polls = nullptr;
+	this->size = 0;
+	this->_capacity = 0;
+	this->_current = 0;
+	this->_ready = 0;
 }

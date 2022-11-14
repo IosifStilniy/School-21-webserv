@@ -2,7 +2,6 @@
 # define REQUEST_HPP
 
 # include <vector>
-# include <queue>
 # include <map>
 # include <string>
 # include <iostream>
@@ -20,6 +19,14 @@
 
 # ifndef HTTP_V
 #  define HTTP_V "http-version"
+# endif
+
+# ifndef HTTP_EOF
+#  define HTTP_EOF "\r\n\r\n"
+# endif
+
+# ifndef NL
+#  define NL "\r\n"
 # endif
 
 class Request
@@ -42,14 +49,23 @@ class Request
 		bool			is_good;
 		transfering		tr_state;
 
+		static const std::string	nl;
+		static const std::string	eof;
+
 		Request(void);
+
+	private:
+		std::string		_tail;
 
 	public:
 		void				parseHeader(void);
+		byte_type *			getChunkSize(byte_type * msg_start, byte_type * msg_end);
 		bool				isFullyReceived(void);
 		std::string const &	getOnlyValue(std::string const & field);
 		std::string const &	getOnlyValue(header_fields::iterator field);
 		void				setValues(ft::key_value_type const & key_value);
+		std::string			formOptionLine(std::string const & field);
+		size_t				getContentLength(void);
 		bool				empty(void);
 
 		void	printOptions(void);

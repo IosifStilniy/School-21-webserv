@@ -91,6 +91,8 @@ void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 
 	if (!location.root.empty() && location.root.back() != '/')
 		location.root.push_back('/');
+	
+	location.cgi = ft::split(p_location.params["cgi"]).back();
 
 	ft::splited_string	splited = ft::split(p_location.params["indexes"]);
 

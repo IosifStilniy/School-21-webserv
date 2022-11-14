@@ -2,7 +2,6 @@
 # define RESPONSE_HPP
 
 # include <vector>
-# include <queue>
 # include <map>
 # include <string>
 # include <list>
@@ -10,9 +9,13 @@
 # include <fcntl.h>
 # include <sys/stat.h>
 
+# include "utils.hpp"
+
 # include "typedefs.hpp"
 # include "RequestCollector.hpp"
 # include "Polls.hpp"
+# include "CGI.hpp"
+
 
 # ifndef MOD
 #  define MOD (S_IRUSR | S_IWUSR | S_IWGRP | S_IRGRP | S_IROTH | S_IXUSR | S_IXGRP)
@@ -26,7 +29,7 @@ class Response
 
 		typedef ByteTypes::byte_type						byte_type;
 		typedef	ByteTypes::bytes_type						bytes_type;
-		typedef std::list<bytes_type>						chunks_type;
+		typedef ByteTypes::chunks_type						chunks_type;
 		typedef ByteTypes::bytes_iterator					bytes_iterator;
 		typedef std::map<std::string, std::string>			header_fields;
 		typedef	std::pair<const std::string, Location> *	path_location_type;
@@ -49,8 +52,8 @@ class Response
 
 		size_t		buf_size;
 		byte_type *	buf;
-		byte_type *	spliter;
-		byte_type *	end;
+
+		CGI			cgi;
 
 		static std::vector<std::string>		supported_protocols;
 		static std::vector<std::string>		implemented_methods;
@@ -76,6 +79,7 @@ class Response
 		void				readFile(std::string const & filepath);
 		void				writeFile(Request & request);
 		void				badResponse(int status, std::string error_page = "");
+		size_t				getContentLength(void);
 		void				redirect(void);
 		std::string const &	chooseErrorPageSource(void);
 		std::string const &	chooseErrorPageSource(int status);

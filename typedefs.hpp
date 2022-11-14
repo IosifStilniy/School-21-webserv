@@ -5,6 +5,7 @@
 # include <queue>
 # include <utility>
 # include <map>
+# include <list>
 # include <set>
 # include <string>
 # include <fstream>
@@ -15,7 +16,7 @@ struct ByteTypes
 {
 	typedef char						byte_type;
 	typedef	std::vector<byte_type>		bytes_type;
-	typedef std::queue<bytes_type>		chunks_type;
+	typedef std::list<bytes_type>		chunks_type;
 	typedef bytes_type::const_iterator	bytes_iterator;
 };
 
@@ -23,6 +24,13 @@ struct Location
 {
 	typedef std::map<std::string, Location>	locations_type;
 
+	Location(void)
+	{};
+
+	~Location()
+	{};
+
+	std::string					cgi;
 	std::string					root;
 	std::set<std::string>		indexes;
 	std::set<std::string>		methods;
@@ -38,8 +46,6 @@ struct ServerSettings
 	typedef std::pair<std::string, std::string>		host_port_type;
 	typedef	std::pair<host_port_type, int>			listen_params_type;
 	typedef	std::set<listen_params_type>			hosts_ports_type;
-
-	static std::vector<std::string>	supported_protos;
 
 	std::set<std::string>	server_names;
 	Location				def_settings;

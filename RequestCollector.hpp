@@ -29,10 +29,6 @@
 // #  define BUFSIZE 4
 # endif
 
-# ifndef HTTP_EOF
-#  define HTTP_EOF "\r\n\r\n"
-# endif
-
 class RequestCollector
 {
 	public:
@@ -51,26 +47,13 @@ class RequestCollector
 		typedef socket_map::const_iterator		const_iterator;
 
 	private:
-		static const std::string	_eof;
-		static const std::string	_nl;
-
-		socket_map			_sockets;
-		byte_type *			_buf;
-		const std::string &	_ref_eof;
-
-		template <typename Iterator>
-		Iterator	_getEOF(Iterator begin, Iterator end)
-		{
-			return (std::search(begin, end, this->_ref_eof.begin(), this->_ref_eof.end()));
-		};
+		socket_map		_sockets;
+		byte_type *		_buf;
 
 		byte_type *	_readHeader(Request & request, byte_type * msg_start, byte_type * msg_end);
 		byte_type *	_readBody(Request & request, byte_type * msg_start, byte_type * msg_end);
-		byte_type *	_getChunkSize(Request & request, byte_type * msg_start, byte_type * msg_end);
 		byte_type *	_splitIncomingStream(Request & request, byte_type * msg_start, byte_type * msg_end);
 		bool		_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start, byte_type * msg_end);
-		bool		_transferEnded(byte_type * & msg_start, size_t dstnc);
-		byte_type *	_chunkedTransferHandler(Request & request, byte_type * msg_start, byte_type * msg_end);
 
 	public:
 		RequestCollector(void);

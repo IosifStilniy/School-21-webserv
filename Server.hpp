@@ -12,7 +12,6 @@
 # include "typedefs.hpp"
 # include "Polls.hpp"
 # include "RequestCollector.hpp"
-# include "ResponseHandler.hpp"
 # include "Maintainer.hpp"
 
 # include "utils.hpp"
@@ -42,7 +41,6 @@ class Server
 
 		RequestCollector		req_coll;
 		Maintainer				maintainer;
-		ResponseHandler			resp_handler;
 
 		Server(void);
 		~Server();
@@ -52,7 +50,9 @@ class Server
 		void	proceed(int timeout = -1);
 
 	private:
-		void	_poll(int timeout = -1);
+		void		_poll(int timeout = -1);
+		void		_giveResponse(Maintainer::response_queue & resp_queue, int socket);
+		std::string	_formHeader(Response::header_fields & options, int status);
 };
 
 #endif

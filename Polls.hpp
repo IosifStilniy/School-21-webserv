@@ -46,6 +46,7 @@ class Polls
 		bool				isGood(int socket)			const;
 		bool				isReady(int socket)			const;
 		std::vector<int>	clear(void);
+		void				purge(void);
 };
 
 #endif

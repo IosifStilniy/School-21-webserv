@@ -1,11 +1,8 @@
 #include "RequestCollector.hpp"
 #include <iostream>
 
-const std::string RequestCollector::_eof(HTTP_EOF);
-const std::string RequestCollector::_nl("\r\n");
-
 RequestCollector::RequestCollector(void)
-	: _buf(new byte_type[BUFSIZE]), _ref_eof(RequestCollector::_eof)
+	: _buf(new byte_type[BUFSIZE])
 {
 }
 
@@ -16,25 +13,25 @@ RequestCollector::~RequestCollector()
 
 bool	RequestCollector::_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start, byte_type * msg_end)
 {
-	if (chunk.empty() || this->_ref_eof.find(*msg_start) == std::string::npos
-		|| RequestCollector::_eof.find(chunk.back()) == std::string::npos)
+	if (chunk.empty() || Request::eof.find(*msg_start) == std::string::npos
+		|| Request::eof.find(chunk.back()) == std::string::npos)
 		return (false);
 
 	bytes_type::iterator	start = chunk.end();
 
 	for (; start != chunk.begin(); start--)
-		if (std::search(this->_ref_eof.begin(), this->_ref_eof.end(), start - 1, chunk.end()) == this->_ref_eof.end())
+		if (std::search(Request::eof.begin(), Request::eof.end(), start - 1, chunk.end()) == Request::eof.end())
 			break ;
 
 	std::string	end(start, chunk.end());
-	size_t		dstnc = this->_ref_eof.size() - end.size();
+	size_t		dstnc = Request::eof.size() - end.size();
 
 	if (static_cast<size_t>(msg_end - msg_start) < dstnc)
 		return (false);
 
 	end.append(std::string(msg_start, msg_start + dstnc));
 
-	if (end != this->_ref_eof)
+	if (end != Request::eof)
 		return (false);
 
 	msg_start += dstnc;
@@ -45,13 +42,14 @@ bool	RequestCollector::_isSplitedEOF(bytes_type & chunk, byte_type * & msg_start
 
 RequestCollector::byte_type *	RequestCollector::_readHeader(Request & request, byte_type * msg_start, byte_type * msg_end)
 {
-	byte_type *		eof = this->_getEOF(msg_start, msg_end);
+	byte_type *		eof = std::search(msg_start, msg_end, Request::eof.begin(), Request::eof.end());
 	chunks_type &	chunks = request.chunks;
 
 	if (this->_isSplitedEOF(chunks.back(), msg_start, msg_end))
 	{
 		request.parseHeader();
-		chunks.pop();
+		chunks.pop_front();
+
 		return (msg_start);
 	}
 
@@ -60,45 +58,10 @@ RequestCollector::byte_type *	RequestCollector::_readHeader(Request & request, b
 	if (eof != msg_end)
 	{
 		request.parseHeader();
-		chunks.pop();
+		chunks.pop_front();
 	}
 
-	msg_start = eof + this->_ref_eof.size();
-
-	return (msg_start);
-}
-
-RequestCollector::byte_type *	RequestCollector::_getChunkSize(Request & request, byte_type * msg_start, byte_type * msg_end)
-{
-	static std::string	tail;
-	byte_type *			spliter = std::search(msg_start, msg_end, RequestCollector::_nl.begin(), RequestCollector::_nl.end());
-
-	if (spliter == msg_start)
-		spliter = std::search(msg_start + RequestCollector::_nl.size(), msg_end, RequestCollector::_nl.begin(), RequestCollector::_nl.end());
-
-	byte_type *			edge = spliter;
-
-	spliter += static_cast<size_t>(msg_end - spliter) > RequestCollector::_nl.size() ? RequestCollector::_nl.size() : msg_end - spliter;
-
-	tail.append(msg_start, spliter);
-	msg_start = spliter;
-
-	if (tail.substr(0, RequestCollector::_eof.size()) == RequestCollector::_eof)
-	{
-		request.content_length = 0;
-		request.tr_state = Request::tStd;
-		tail.clear();
-		return (msg_start);
-	}
-
-	if (edge == msg_end)
-		return (msg_start);
-
-	request.content_length = strtoul(tail.c_str(), NULL, 16);
-	tail.clear();
-
-	if (!request.content_length)
-		return (this->_getChunkSize(request, edge, msg_end));
+	msg_start = eof + Request::eof.size();
 
 	return (msg_start);
 }
@@ -106,12 +69,12 @@ RequestCollector::byte_type *	RequestCollector::_getChunkSize(Request & request,
 RequestCollector::byte_type *	RequestCollector::_readBody(Request & request, byte_type * msg_start, byte_type * msg_end)
 {
 	if (!request.content_length && request.tr_state == Request::tChunked)
-		msg_start = this->_getChunkSize(request, msg_start, msg_end);
+		msg_start = request.getChunkSize(msg_start, msg_end);
 
 	if (!request.content_length)
 		return (msg_start);
 	
-	request.chunks.push(bytes_type());
+	request.chunks.push_back(bytes_type());
 
 	bytes_type &	chunk = request.chunks.back();
 
