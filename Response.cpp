@@ -36,8 +36,8 @@ Response::Response(const Response & src)
 
 Response::~Response()
 {
-	::close(this->in);
-	::close(this->out);
+	close(this->in);
+	close(this->out);
 	delete [] this->buf;
 }
 
@@ -50,9 +50,6 @@ void	Response::readFile(std::string const & file_path)
 {
 	if (this->in == -1)
 		this->in = open(file_path.c_str(), O_RDONLY | O_NONBLOCK);
-	
-	if (this->chunks.empty() || this->chunks.back().size() == this->buf_size)
-		this->chunks.push_back(bytes_type());
 
 	this->polls.poll(0);
 
@@ -73,11 +70,10 @@ void	Response::readFile(std::string const & file_path)
 		::close(this->in);
 		this->in = -1;
 
-		if (this->trans_mode == tChunked)
-			this->trans_mode = tStd;
-
 		return ;
 	}
+	else if (this->chunks.empty() || this->chunks.back().size() == this->buf_size)
+		this->chunks.push_back(bytes_type());
 
 	byte_type *	end = this->buf + length;
 	byte_type *	spliter = end;
@@ -95,6 +91,11 @@ void	Response::readFile(std::string const & file_path)
 
 void	Response::writeFile(Request & request)
 {
+	if (this->out == -1)
+		this->out = open(this->mounted_path.c_str(), O_WRONLY | O_TRUNC | O_NONBLOCK | O_CREAT, MOD);
+
+	this->polls.poll(0);
+
 	if (request.chunks.empty() || request.chunks.front().empty())
 	{
 		if (!request.content_length && request.tr_state == Request::tStd)
@@ -106,20 +107,16 @@ void	Response::writeFile(Request & request)
 		return ;
 	}
 
-	if (this->out == -1)
-		this->out = open(this->mounted_path.c_str(), O_WRONLY | O_TRUNC | O_NONBLOCK | O_CREAT, MOD);
-
-	this->polls.poll(0);
-
-	if (!this->polls.isGood(this->out))
+	if (!this->polls.isReady(this->out))
 	{
-		::close(this->out);
-		this->out = -1;
+		if (!this->polls.isGood(this->out))
+		{
+			close(this->out);
+			this->out = -1;
+		}
+
 		return ;
 	}
-
-	if (!this->polls.isReady(this->out))
-		return ;
 
 	Request::bytes_type &	chunk = request.chunks.front();
 
@@ -200,11 +197,15 @@ void	Response::_checkSettings(Request & request)
 	if (std::find(Response::implemented_methods.begin(), Response::implemented_methods.end(), request.getOnlyValue(METHOD)) == Response::implemented_methods.end())
 	{
 		for (std::vector<std::string>::const_iterator start = Response::implemented_methods.begin(); start != Response::implemented_methods.end(); start++)
-			this->options["Allow"].append(" " + *start);
+			this->options["Allow"].append(" " + ft::toUpper(*start) + ",");
+		
+		if (this->options["Allow"].back() == ',')
+			this->options["Allow"].pop_back();
 
 		this->badResponse(501);
-		throw MethodException(*this, request.getOnlyValue(METHOD), "unimplemented method");
+		throw ServerSettingsException(*this, request.getOnlyValue(METHOD) + ": unimplemented method");
 	}
+
 }
 
 void	Response::_getSettings(Request & request, std::vector<ServerSettings> & settings_collection)
@@ -260,7 +261,7 @@ void	Response::_checkLocation(Request & request)
 	}
 }
 
-void	Response::_getEndPointLocation(Location::locations_type & locations)
+void	Response::_getEndPointLocation(Location::locations_type & locations, std::string const & method)
 {
 	path_location_type	founded = nullptr;
 	size_t				length = 0;
@@ -271,6 +272,10 @@ void	Response::_getEndPointLocation(Location::locations_type & locations)
 			|| this->mounted_path.find(start->first) == std::string::npos
 			|| (this->mounted_path.find(start->first) + start->first.size() != this->mounted_path.size()
 				&& this->mounted_path[this->mounted_path.find(start->first) + start->first.size()] != '/'))
+			continue ;
+
+		if ((!start->second.methods.empty() && std::find(start->second.methods.begin(), start->second.methods.end(), method) == start->second.methods.end())
+			|| (start->second.cgi[method].empty() && start->second.cgi[""].empty()))
 			continue ;
 		
 		founded = &*start;
@@ -327,13 +332,13 @@ void	Response::_getLocation(Location::locations_type & locations, Request & requ
 		if (this->path_location->first.front() != '/')
 			return ;
 		
-		this->_getEndPointLocation(locations);
+		this->_getEndPointLocation(locations, request.getOnlyValue(METHOD));
 		return ;
 	}
 
 	this->path_location = founded;
 
-	this->_getEndPointLocation(locations);
+	this->_getEndPointLocation(locations, request.getOnlyValue(METHOD));
 
 	this->_checkLocation(request);
 }
@@ -365,7 +370,7 @@ void	Response::checkGetPath()
 	{
 		if (ft::exist(this->mounted_path))
 			return ;
-		
+
 		this->badResponse(404);
 		throw PathException(*this, "not found");
 	}
@@ -376,16 +381,19 @@ void	Response::checkGetPath()
 		throw PathException(*this, "is directory");
 	}
 
+	if (this->mounted_path.back() != '/')
+		this->mounted_path.append("/");
+
 	this->_listIndexes();
 }
 
 void	Response::checkPutPath(void)
 {
-	if (ft::exist(this->mounted_path))
-	{
-		this->badResponse(409, this->chooseErrorPageSource(409));
-		throw PathException(*this, "already exist");
-	}
+	// if (ft::exist(this->mounted_path))
+	// {
+	// 	this->badResponse(409, this->chooseErrorPageSource(409));
+	// 	throw PathException(*this, "already exist");
+	// }
 
 	ft::splited_string	splited = ft::split(this->mounted_path.substr(this->path_location->second.root.size()), "/");
 
@@ -453,6 +461,8 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 		std::cerr << e.what() << std::endl;
 		return ;
 	}
+
+	this->cgi.setPath(this->path_location->second.cgi, request.getOnlyValue(METHOD));
 
 	if (request.getOnlyValue("Connection") == "keep-alive")
 		this->con_status = cKeep_alive;

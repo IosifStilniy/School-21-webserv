@@ -4,7 +4,7 @@ server_names
 
 #'location' scope only
 redirect
-cgi
+cgi						# example: cgi @path_to_cgi [method1] [method2] ... [methodN]
 
 #any inner scope
 root

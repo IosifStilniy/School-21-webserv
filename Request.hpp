@@ -29,6 +29,10 @@
 #  define NL "\r\n"
 # endif
 
+# ifndef REQ_TIMEOUT
+#  define REQ_TIMEOUT 5
+# endif
+
 class Request
 {
 	public:
@@ -48,6 +52,7 @@ class Request
 		size_t			content_length;
 		bool			is_good;
 		transfering		tr_state;
+		std::string		raw_header;
 
 		static const std::string	nl;
 		static const std::string	eof;

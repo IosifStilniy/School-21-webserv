@@ -16,7 +16,6 @@
 # include "Polls.hpp"
 # include "CGI.hpp"
 
-
 # ifndef MOD
 #  define MOD (S_IRUSR | S_IWUSR | S_IWGRP | S_IRGRP | S_IROTH | S_IXUSR | S_IXGRP)
 # endif
@@ -66,7 +65,7 @@ class Response
 	private:
 		void				_getSettings(Request & request, std::vector<ServerSettings> & settings);
 		void				_getLocation(Location::locations_type & locations, Request & request);
-		void				_getEndPointLocation(Location::locations_type & locations);
+		void				_getEndPointLocation(Location::locations_type & locations, std::string const & method);
 		path_location_type	_getMidPointLocation(Location::locations_type & locations, std::string const & path);
 		void				_listIndexes(void);
 		void				_checkSettings(Request & request);

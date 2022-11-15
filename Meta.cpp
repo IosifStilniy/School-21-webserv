@@ -85,6 +85,36 @@ void	Meta::_bindErrorPages(std::string const & params, std::map<int, std::string
 		check.close();
 }
 
+void	Meta::_fillCGIInfo(ft::splited_string const & info, std::map<std::string, std::string> & cgi)
+{
+	if (info[0].empty())
+		return ;
+	
+	std::string	path;
+
+	for (ft::splited_string::const_iterator param = info.begin(); param != info.end(); param++)
+	{
+		if (param->front() == '@')
+		{
+			path = param->substr(1);
+			continue ;
+		}
+
+		if (path.empty())
+			throw std::logic_error("cgi example: cgi @path_to_executor [method1] [method2] ... [methodN]: words in [] are optional");
+
+		cgi[*param] = path;
+	}
+
+	if (info.back().front() != '@')
+		return ;
+	
+	if (info.back().size() < 2)
+		throw std::logic_error("cgi example: cgi @path_to_executor [method1] [method2] ... [methodN]: words in [] are optional");
+		
+	cgi[""] = path;
+}
+
 void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 {
 	location.root = ft::split(p_location.params["root"]).back();
@@ -92,7 +122,7 @@ void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 	if (!location.root.empty() && location.root.back() != '/')
 		location.root.push_back('/');
 	
-	location.cgi = ft::split(p_location.params["cgi"]).back();
+	this->_fillCGIInfo(ft::split(p_location.params["cgi"]), location.cgi);
 
 	ft::splited_string	splited = ft::split(p_location.params["indexes"]);
 

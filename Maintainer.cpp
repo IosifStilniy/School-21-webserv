@@ -4,6 +4,7 @@ static std::vector<std::string>	methodsNameInit(void)
 {
 	std::vector<std::string>	methods;
 
+	methods.push_back("head");
 	methods.push_back("get");
 	methods.push_back("put");
 	methods.push_back("post");
@@ -17,14 +18,26 @@ const std::vector<std::string> Maintainer::_methods_names = methodsNameInit();
 Maintainer::Maintainer(std::vector<ServerSettings> & settings)
 	: _settings(settings)
 {
-	this->_methods[0] = &Maintainer::_get;
-	this->_methods[1] = &Maintainer::_put;
-	this->_methods[2] = &Maintainer::_post;
-	this->_methods[3] = &Maintainer::_delete;
+	this->_methods[0] = &Maintainer::_head;
+	this->_methods[1] = &Maintainer::_get;
+	this->_methods[2] = &Maintainer::_put;
+	this->_methods[3] = &Maintainer::_post;
+	this->_methods[4] = &Maintainer::_delete;
 }
 
 Maintainer::~Maintainer()
 {
+}
+
+void	Maintainer::_head(Request & request, Response & response)
+{
+	this->_get(request, response);
+
+	if (!response.status)
+		return ;
+
+	response.trans_mode = Response::tStd;
+	response.chunks.clear();
 }
 
 void	Maintainer::_get(Request & request, Response & response)
@@ -45,6 +58,14 @@ void	Maintainer::_get(Request & request, Response & response)
 
 	response.readFile();
 	
+	if (response.trans_mode == Response::tChunked && !response.polls.isGood(response.in))
+	{
+		if (!response.chunks.size() || !response.chunks.back().empty())
+			response.chunks.push_back(Response::bytes_type());
+			
+		return ;
+	}
+
 	if (response.status)
 		return ;
 
@@ -67,12 +88,7 @@ void	Maintainer::_get(Request & request, Response & response)
 		return ;
 	}
 
-	size_t	length = 0;
-	
-	for (Response::chunks_type::const_iterator chunk = response.chunks.begin(); chunk != response.chunks.end(); chunk++)
-		length += chunk->size();
-
-	response.options["Content-Length"] = ft::num_to_string(length);
+	response.options["Content-Length"] = ft::num_to_string(response.getContentLength());
 	response.status = 200;
 }
 
@@ -97,12 +113,9 @@ void	Maintainer::_put(request_type & request, Response & response)
 
 	response.writeFile(request);
 
-	if (response.status)
+	if (response.status || response.polls.isGood(response.out))
 		return ;
 	
-	if (response.polls.isGood(response.out))
-		return ;
-
 	if (!request.empty())
 	{
 		response.badResponse(500);
@@ -163,6 +176,12 @@ void	Maintainer::_dispatchRequest(request_type & request, Response & response)
 {
 	if (!response.inited)
 		response.init(request, this->_settings);
+	
+	if (!response.cgi.getPath().empty())
+	{
+		response.cgi.handle(request, response);
+		return ;
+	}
 
 	size_t	i = 0;
 
@@ -170,7 +189,8 @@ void	Maintainer::_dispatchRequest(request_type & request, Response & response)
 		if (Maintainer::_methods_names[i] == ft::toLower(request.getOnlyValue("method")))
 			break ;
 
-	PTR_FUNC(i)(request, response);
+	if (i < Maintainer::_methods_names.size())
+		PTR_FUNC(i)(request, response);
 }
 
 Maintainer::response_queue &	Maintainer::operator[](int socket)

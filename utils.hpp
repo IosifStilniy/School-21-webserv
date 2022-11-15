@@ -187,7 +187,7 @@ namespace ft
 
 		for (typename Container::const_iterator string = cont.begin(); string != cont.end(); string++, crsr++)
 			*crsr = string->c_str();
-		crsr = NULL;
+		*crsr = NULL;
 
 		return (const_cast<char * const *>(arr));
 	}

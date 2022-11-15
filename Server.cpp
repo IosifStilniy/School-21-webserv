@@ -119,16 +119,19 @@ void	Server::_giveResponse(Maintainer::response_queue & resp_queue, int socket)
 
 		send(socket, &chunk[0], chunk.size(), 0);
 
-		response.chunks.pop_front();
-
 		if (response.trans_mode == Response::tChunked)
 			send(socket, NL, sizeof(NL), 0);
+
+		response.chunks.pop_front();
 	}
 	
 	if (response.chunks.empty() || response.chunks.front().empty())
 	{
 		if (response.trans_mode == Response::tChunked)
-			send(socket, NL, sizeof(NL), 0);
+		{
+			send(socket, std::string("0" + Request::eof).c_str(), Request::eof.size() + 1, 0);
+			response.trans_mode = Response::tStd;
+		}
 
 		if (response.con_status == Response::cClose)
 			close(socket);

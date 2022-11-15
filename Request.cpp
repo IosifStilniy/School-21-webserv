@@ -52,12 +52,14 @@ void	Request::parseHeader(void)
 {
 	if (!this->options.empty())
 		return ;
-
+	
 	ft::splited_string	splited = ft::split(std::string(this->chunks.front().begin(), this->chunks.front().end()), "\n");
 	ft::splited_string	splited_line = ft::split(splited[0]);
 
 	if (splited_line.size() != 3)
 		throw std::runtime_error("bad request-line: " + splited[0]);
+
+	this->raw_header = std::string(this->chunks.front().begin(), this->chunks.front().end()) + HTTP_EOF;
 
 	this->setValues(std::make_pair(METHOD, ft::toLower(splited_line[0])));
 	this->setValues(std::make_pair(CONTENT_PATH, splited_line[1]));

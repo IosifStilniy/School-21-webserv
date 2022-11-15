@@ -30,15 +30,15 @@ struct Location
 	~Location()
 	{};
 
-	std::string					cgi;
-	std::string					root;
-	std::set<std::string>		indexes;
-	std::set<std::string>		methods;
-	std::pair<int, std::string>	redir;
-	std::string					e_is_dir;
-	std::map<int, std::string>	error_pages;
-	locations_type				locations;
-	size_t						size_limit;
+	std::map<std::string, std::string>	cgi;
+	std::string							root;
+	std::set<std::string>				indexes;
+	std::set<std::string>				methods;
+	std::pair<int, std::string>			redir;
+	std::string							e_is_dir;
+	std::map<int, std::string>			error_pages;
+	locations_type						locations;
+	size_t								size_limit;
 };
 
 struct ServerSettings
