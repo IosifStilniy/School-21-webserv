@@ -50,19 +50,23 @@ namespace ft
 	std::string		quoteString(std::string const & string, std::string const & quote = "\"");
 
 	template <typename Number>
-	std::string	num_to_string(Number num)
+	std::string	num_to_string(Number num, int base = 10)
 	{
 		if (!num)
 			return (std::string("0"));
 
 		std::string	str;
 		bool		sign = (num < 0);
+		char		symb;
+		int			remain;
 
 		str.reserve(50);
 		while (num)
 		{
-			str.insert(str.begin(), (num % 10) + '0');
-			num /= 10;
+			remain = num % base;
+			symb = remain < 10 ? remain + '0' : remain - 10 + 'a';
+			str.insert(str.begin(), symb);
+			num /= base;
 		}
 
 		if (sign)

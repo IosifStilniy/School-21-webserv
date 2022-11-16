@@ -80,10 +80,11 @@ void	Polls::setSockOpt(pollfd & poll_struct, int option_name, int option_value)
 	setsockopt(poll_struct.fd, SOL_SOCKET, option_name, &option_value, sizeof(option_value));
 }
 
-void	Polls::poll(int timeout)
+int	Polls::poll(int timeout)
 {
 	this->_ready = ::poll(this->polls, this->size, timeout);
 	this->_current = 0;
+	return (this->_ready);
 }
 
 int		Polls::getNextSocket(void)

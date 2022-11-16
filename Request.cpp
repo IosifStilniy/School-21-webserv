@@ -4,7 +4,7 @@ const std::string Request::eof(HTTP_EOF);
 const std::string Request::nl(NL);
 
 Request::Request(void)
-	: chunks(), options(), content_length(0), is_good(true), tr_state(tStd)
+	: content_length(0), is_good(true), tr_state(tStd), last_modified(time(NULL))
 {
 	chunks.push_back(bytes_type());
 }
@@ -165,4 +165,11 @@ size_t	Request::getContentLength(void)
 		size += chunk->size();
 	
 	return (size);
+}
+
+bool	Request::isStale(void)
+{
+	if (this->options.empty() && (this->chunks.empty() || this->chunks.front().empty()))
+		return (false);
+	return (time(NULL) - this->last_modified > REQ_TIMEOUT);
 }

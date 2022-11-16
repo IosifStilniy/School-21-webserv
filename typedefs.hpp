@@ -17,7 +17,6 @@ struct ByteTypes
 	typedef char						byte_type;
 	typedef	std::vector<byte_type>		bytes_type;
 	typedef std::list<bytes_type>		chunks_type;
-	typedef bytes_type::const_iterator	bytes_iterator;
 };
 
 struct Location

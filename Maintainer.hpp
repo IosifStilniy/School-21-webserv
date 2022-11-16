@@ -19,7 +19,6 @@ class Maintainer
 {
 	public:
 		typedef	RequestCollector::request_queue		request_queue;
-		typedef	Request								request_type;
 		typedef std::queue<Response>				response_queue;
 		typedef	std::map<int, response_queue>		socket_map;
 		typedef socket_map::iterator				iterator;
@@ -33,13 +32,13 @@ class Maintainer
 
 		static const std::vector<std::string>	_methods_names;
 
-		void	_dispatchRequest(request_type & request, Response & response);
+		void	_dispatchRequest(Request & request, Response & response);
 		
 		void	_head(Request & request, Response & response);
 		void	_get(Request & request, Response & response);
-		void	_put(request_type & request, Response & response);
-		void	_post(request_type & request, Response & response);
-		void	_delete(request_type & request, Response & response);
+		void	_put(Request & request, Response & response);
+		void	_post(Request & request, Response & response);
+		void	_delete(Request & request, Response & response);
 
 		void	(Maintainer::*_methods[5])(Request & request, Response & response);
 

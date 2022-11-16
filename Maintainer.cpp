@@ -56,9 +56,20 @@ void	Maintainer::_get(Request & request, Response & response)
 		}
 	}
 
-	response.readFile();
+	ssize_t	length;
+
+	try
+	{
+		length = response.readFile();
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
+		response.badResponse(500);
+		return ;
+	}
 	
-	if (response.trans_mode == Response::tChunked && !response.polls.isGood(response.in))
+	if (response.trans_mode == Response::tChunked && static_cast<size_t>(length) < response.buf_size)
 	{
 		if (!response.chunks.size() || !response.chunks.back().empty())
 			response.chunks.push_back(Response::bytes_type());
@@ -69,7 +80,7 @@ void	Maintainer::_get(Request & request, Response & response)
 	if (response.status)
 		return ;
 
-	if (!response.polls.isGood(response.in) && response.chunks.front().empty())
+	if (!response.polls.isGood(response.in) && length < 0)
 	{
 		response.badResponse(404);
 		return ;
@@ -77,7 +88,7 @@ void	Maintainer::_get(Request & request, Response & response)
 
 	if (response.polls.isGood(response.in))
 	{
-		if (request.options["TE"].find("chunked") == request.options["TE"].end())
+		if (!request.options["TE"].empty() && request.options["TE"].find("chunked") == request.options["TE"].end())
 			return ;
 
 		if (!response.options["Transfer-Encoding"].empty())
@@ -92,7 +103,7 @@ void	Maintainer::_get(Request & request, Response & response)
 	response.status = 200;
 }
 
-void	Maintainer::_put(request_type & request, Response & response)
+void	Maintainer::_put(Request & request, Response & response)
 {
 	if (!response.inited)
 	{
@@ -129,7 +140,7 @@ void	Maintainer::_put(request_type & request, Response & response)
 	response.options["Location"] = request.getOnlyValue(CONTENT_PATH);
 }
 
-void	Maintainer::_post(request_type & request, Response & response)
+void	Maintainer::_post(Request & request, Response & response)
 {
 	if (!request.options["Content-Length"].empty())
 	{
@@ -143,7 +154,7 @@ void	Maintainer::_post(request_type & request, Response & response)
 	response.status = 200;
 }
 
-void	Maintainer::_delete(request_type & request, Response & response)
+void	Maintainer::_delete(Request & request, Response & response)
 {
 	static_cast<void>(request);
 
@@ -172,13 +183,15 @@ void	Maintainer::_delete(request_type & request, Response & response)
 	response.status = 200;
 }
 
-void	Maintainer::_dispatchRequest(request_type & request, Response & response)
+void	Maintainer::_dispatchRequest(Request & request, Response & response)
 {
 	if (!response.inited)
 		response.init(request, this->_settings);
 	
 	if (!response.cgi.getPath().empty())
 	{
+		// std::cout << "tut" << std::endl;
+		response.inited = true;
 		response.cgi.handle(request, response);
 		return ;
 	}
@@ -205,7 +218,8 @@ void	Maintainer::proceedRequests(RequestCollector & requests)
 		const int &			socket = start->first;
 		request_queue &		req_queue = start->second;
 
-		if (req_queue.empty() || req_queue.front().options.empty())
+		if (req_queue.empty()
+			|| (req_queue.front().options.empty() && (req_queue.front().chunks.empty() || req_queue.front().chunks.front().empty())))
 			continue ;
 
 		response_queue &	responses = this->_sockets[socket];
@@ -213,9 +227,14 @@ void	Maintainer::proceedRequests(RequestCollector & requests)
 		if (responses.empty())
 			responses.push(Response());
 
-		this->_dispatchRequest(req_queue.front(), responses.back());
+		if (!req_queue.front().isFullyReceived() && req_queue.front().isStale())
+			responses.back().badResponse(408);
+		else if (!req_queue.front().options.empty())
+			this->_dispatchRequest(req_queue.front(), responses.back());
 
-		if (!responses.back().status || responses.back().trans_mode == Response::tChunked)
+		if (!responses.back().status
+			|| (responses.back().trans_mode == Response::tChunked
+				&& (responses.back().chunks.empty() || !responses.back().chunks.front().empty())))
 			continue ;
 
 		responses.push(Response());

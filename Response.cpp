@@ -27,7 +27,7 @@ Response::Response(void)
 }
 
 Response::Response(const Response & src)
-	: status(0), inited(false), con_status(cStd), trans_mode(tStd), settings(nullptr), path_location(nullptr), polls((int []){0, 0}, (int []){POLLIN, POLLOUT}, 2), in(polls.polls[0].fd), out(polls.polls[1].fd), buf_size(sizeof(*buf) * BUFSIZE), buf(new byte_type[buf_size])
+	: status(0), inited(false), con_status(cStd), trans_mode(tStd), settings(nullptr), path_location(nullptr), polls((int [2]){0, 0}, (int [2]){POLLIN, POLLOUT}, 2), in(polls.polls[0].fd), out(polls.polls[1].fd), buf_size(sizeof(*buf) * BUFSIZE), buf(new byte_type[buf_size])
 {
 	static_cast<void>(src);
 	this->in = -1;
@@ -41,38 +41,44 @@ Response::~Response()
 	delete [] this->buf;
 }
 
-void	Response::readFile(void)
+ssize_t	Response::readFile(void)
 {
-	this->readFile(this->mounted_path);
+	return (this->readFile(this->mounted_path));
 }
 
-void	Response::readFile(std::string const & file_path)
+ssize_t	Response::readFile(std::string const & file_path)
 {
 	if (this->in == -1)
 		this->in = open(file_path.c_str(), O_RDONLY | O_NONBLOCK);
 
-	this->polls.poll(0);
+	if (this->in == -1)
+		return (-1);
+
+	if (this->polls.poll(0) < 0)
+		throw std::runtime_error("poll: " + std::string(strerror(errno)));
 
 	if (!this->polls.isGood(this->in))
 	{
 		::close(this->in);
 		this->in = -1;
-		return ;
 	}
 
 	if (!this->polls.isReady(this->in))
-		return ;
+		return (0);
 
-	size_t	length = read(this->in, this->buf, this->buf_size);
+	ssize_t	length = read(this->in, this->buf, this->buf_size);
+
+	if (length < 0)
+		throw std::runtime_error("read: " + std::string(strerror(errno)));
 
 	if (!length)
 	{
 		::close(this->in);
 		this->in = -1;
 
-		return ;
+		return (length);
 	}
-	else if (this->chunks.empty() || this->chunks.back().size() == this->buf_size)
+	else if (this->chunks.empty() || !(this->chunks.back().size() < this->buf_size))
 		this->chunks.push_back(bytes_type());
 
 	byte_type *	end = this->buf + length;
@@ -80,13 +86,21 @@ void	Response::readFile(std::string const & file_path)
 
 	bytes_type &	chunk = this->chunks.back();
 
-	if (length > this->buf_size - chunk.size())
+	if (static_cast<size_t>(length) > this->buf_size - chunk.size())
 		spliter = this->buf + this->buf_size - chunk.size();
 	
 	chunk.insert(chunk.end(), this->buf, spliter);
 
 	if (spliter != end)
 		chunks.push_back(bytes_type(spliter, end));
+	
+	if (!(static_cast<size_t>(length) < this->buf_size))
+		return (length);
+	
+	close(this->in);
+	this->in = -1;
+
+	return (length);
 }
 
 void	Response::writeFile(Request & request)
@@ -389,12 +403,6 @@ void	Response::checkGetPath()
 
 void	Response::checkPutPath(void)
 {
-	// if (ft::exist(this->mounted_path))
-	// {
-	// 	this->badResponse(409, this->chooseErrorPageSource(409));
-	// 	throw PathException(*this, "already exist");
-	// }
-
 	ft::splited_string	splited = ft::split(this->mounted_path.substr(this->path_location->second.root.size()), "/");
 
 	if (splited[0].empty() || splited.back().back() == '/')

@@ -49,7 +49,7 @@ int	main(int argc, char **argv)
 	
 	while (1)
 		for (it = meta.servers.begin(); it != meta.servers.end(); it++)
-			it->second.proceed(500);
+			it->second.proceed(0);
 
 	return (0);
 }

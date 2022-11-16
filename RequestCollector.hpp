@@ -35,7 +35,6 @@ class RequestCollector
 		typedef ByteTypes::byte_type						byte_type;
 		typedef	ByteTypes::bytes_type						bytes_type;
 		typedef ByteTypes::chunks_type						chunks_type;
-		typedef ByteTypes::bytes_iterator					bytes_iterator;
 		typedef std::map<std::string, std::string>			header_values_params;
 		typedef std::map<std::string, header_values_params>	header_values;
 		typedef std::map<std::string, header_values>		header_fields;

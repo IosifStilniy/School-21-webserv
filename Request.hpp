@@ -5,6 +5,7 @@
 # include <map>
 # include <string>
 # include <iostream>
+# include <ctime>
 
 # include "utils.hpp"
 # include "typedefs.hpp"
@@ -41,7 +42,6 @@ class Request
 		typedef ByteTypes::byte_type						byte_type;
 		typedef	ByteTypes::bytes_type						bytes_type;
 		typedef ByteTypes::chunks_type						chunks_type;
-		typedef ByteTypes::bytes_iterator					bytes_iterator;
 		typedef std::map<std::string, std::string>			header_values_params;
 		typedef std::map<std::string, header_values_params>	header_values;
 		typedef std::map<std::string, header_values>		header_fields;
@@ -53,6 +53,8 @@ class Request
 		bool			is_good;
 		transfering		tr_state;
 		std::string		raw_header;
+
+		std::time_t		last_modified;
 
 		static const std::string	nl;
 		static const std::string	eof;
@@ -72,6 +74,7 @@ class Request
 		std::string			formOptionLine(std::string const & field);
 		size_t				getContentLength(void);
 		bool				empty(void);
+		bool				isStale(void);
 
 		void	printOptions(void);
 		void	printOptions(header_values_params const & options, int indent = 0);

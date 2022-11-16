@@ -19,13 +19,6 @@
 class Server
 {
 	public:
-		typedef ByteTypes::byte_type		byte_type;
-		typedef	ByteTypes::bytes_type		bytes_type;
-		typedef ByteTypes::chunks_type		chunks_type;
-		typedef ByteTypes::bytes_iterator	bytes_iterator;
-		
-	public:
-
 		typedef std::map<std::string, Location>		locations_type;
 		typedef ServerSettings						Settings;
 		typedef ServerSettings::hosts_ports_type	hosts_ports_type;
@@ -53,6 +46,8 @@ class Server
 		void		_poll(int timeout = -1);
 		void		_giveResponse(Maintainer::response_queue & resp_queue, int socket);
 		std::string	_formHeader(Response::header_fields & options, int status);
+		void		_formPacket(Response & response, Response::bytes_type & packet);
+		void		_sendPacket(Response::bytes_type & packet, Response & response, int socket);
 };
 
 #endif

@@ -2,7 +2,7 @@
 #include "Response.hpp"
 
 CGI::CGI(void)
-	: stat_loc(-1), buf(new ByteTypes::byte_type[BUFSIZE]), buf_size(BUFSIZE)
+	: _header_extracted(false), stat_loc(-1), buf(new ByteTypes::byte_type[BUFSIZE]), buf_size(BUFSIZE)
 {
 }
 
@@ -74,31 +74,32 @@ ft::splited_string	CGI::_vectorizeEnv(void)
 
 void	CGI::_setEnv(Request & request, std::string const & mounted_path, std::string const & loc_path)
 {
-	this->_env["HTTP_ACCEPT"] = ft::quoteString(request.formOptionLine("Accept"));
-	this->_env["HTTP_ACCEPT_CHARSET"] = ft::quoteString(request.formOptionLine("Accept-Charset"));
-	this->_env["HTTP_ACCEPT_ENCODING"] = ft::quoteString(request.formOptionLine("Accept-Encoding"));
-	this->_env["HTTP_ACCEPT_LANGUAGE"] = ft::quoteString(request.formOptionLine("Accept-Language"));
+	this->_env["HTTP_ACCEPT"] = request.formOptionLine("Accept");
+	this->_env["HTTP_ACCEPT_CHARSET"] = request.formOptionLine("Accept-Charset");
+	this->_env["HTTP_ACCEPT_ENCODING"] = request.formOptionLine("Accept-Encoding");
+	this->_env["HTTP_ACCEPT_LANGUAGE"] = request.formOptionLine("Accept-Language");
 	this->_env["HTTP_CONNECTION"] = request.formOptionLine("Connection");
 	this->_env["HTTP_HOST"] = request.formOptionLine("Host");
 	this->_env["HTTP_USER_AGENT"] = request.formOptionLine("User-Agent");
+	this->_env["GATEWAY_INTERFACE"] = "CGI/1.1";
 	this->_env["PATH"] = getenv("PATH");
 	// this->_env["PATH_INFO"] = this->_extractPathInfo(request.getOnlyValue(CONTENT_PATH), loc_path);
 	this->_env["PATH_INFO"] = request.getOnlyValue(CONTENT_PATH);
 	this->_env["PATH_TRANSLATED"] = this->_translatePath(mounted_path, loc_path);
-	this->_env["QUERY_STRING"] = ft::quoteString(this->_extractQueryString(request.getOnlyValue(CONTENT_PATH)));
+	this->_env["QUERY_STRING"] = this->_extractQueryString(request.getOnlyValue(CONTENT_PATH));
 	this->_env["REMOTE_ADDR"];
 	this->_env["REMOTE_PORT"];
-	this->_env["REQUEST_METHOD"] = ft::quoteString(ft::toUpper(request.getOnlyValue(METHOD)));
+	this->_env["REQUEST_METHOD"] = ft::toUpper(request.getOnlyValue(METHOD));
 	this->_env["REQUEST_URI"] = request.getOnlyValue(CONTENT_PATH);
-	this->_env["SCRIPT_FILENAME"] = ft::quoteString(this->_translatePath(mounted_path, loc_path));
-	this->_env["SCRIPT_NAME"] = ft::quoteString(std::string(request.getOnlyValue(CONTENT_PATH).begin(), this->_getPathEdge(request.getOnlyValue(CONTENT_PATH), loc_path)));
+	this->_env["SCRIPT_FILENAME"] = this->_translatePath(mounted_path, loc_path);
+	this->_env["SCRIPT_NAME"] = std::string(request.getOnlyValue(CONTENT_PATH).begin(), this->_getPathEdge(request.getOnlyValue(CONTENT_PATH), loc_path));
 	this->_env["SERVER_ADDR"];
 	this->_env["SERVER_NAME"] = request.formOptionLine("Host");
 	this->_env["SERVER_PORT"];
 	this->_env["SERVER_PROTOCOL"] = request.getOnlyValue(HTTP_V);
 	this->_env["SERVER_SIGNATURE"];
-	this->_env["SERVER_SOFTWARE"] = ft::quoteString("webserv/0.1");
-	this->_env["CONTENT_TYPE"] = ft::quoteString(request.formOptionLine("Content-Type"));
+	this->_env["SERVER_SOFTWARE"] = "webserv/0.1";
+	this->_env["CONTENT_TYPE"] = request.formOptionLine("Content-Type");
 	this->_env["CONTENT_LENGTH"] = ft::num_to_string(request.getContentLength());
 	this->_env["HTTP_COOKIE"];
 }
@@ -201,6 +202,21 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 		response.chunks.push_back(Response::bytes_type(repited_req_eof, chunk.end()));
 
 	response.chunks.pop_front();
+
+	if ((response.options["Transfer-Encoding"].empty() || response.options["Transfer-Encoding"].find("chunked") != std::string::npos)
+		&& response.options["Content-Length"].empty())
+	{
+		if (response.options["Transfer-Encoding"].find("chunked") == std::string::npos)
+		{
+			if (!response.options["Transfer-Encoding"].empty())
+				response.options["Transfer-Encoding"].append(", ");
+			response.options["Transfer-Encoding"].append("chunked");
+		}
+
+		response.trans_mode = Response::tChunked;
+	}
+
+	this->_header_extracted = true;
 }
 
 void	CGI::_setResponseStatus(Response & response)
@@ -208,10 +224,10 @@ void	CGI::_setResponseStatus(Response & response)
 	response.status = strtoul(response.options["Status"].c_str(), NULL, 10);
 	response.options["Status"].clear();
 
-	if (response.options["Transfer-Encoding"].find("chunked") != std::string::npos)
-		response.trans_mode = Response::tChunked;
-	else if (response.options["Content-Length"].empty() && !response.chunks.empty() && !response.chunks.front().empty())
-		response.options["Content-Length"] = ft::num_to_string(response.getContentLength());
+	// if (response.options["Transfer-Encoding"].find("chunked") != std::string::npos || response.options["Content-Length"].empty())
+	// 	response.trans_mode = Response::tChunked;
+	// else if (response.options["Content-Length"].empty() && !response.chunks.empty() && !response.chunks.front().empty())
+	// 	response.options["Content-Length"] = ft::num_to_string(response.getContentLength());
 
 	if (response.status)
 		return ;
@@ -272,7 +288,8 @@ void	CGI::_finishRecieving(Response & response)
 {
 	try
 	{
-		this->_setResponseStatus(response);
+		if (!response.status)
+			this->_setResponseStatus(response);
 	}
 	catch(const std::exception& e)
 	{
@@ -319,9 +336,6 @@ void	CGI::handle(Request & request, Response & response)
 		request.chunks.pop_front();
 		time(&this->last_modified);
 	}
-
-	if (response.chunks.empty())
-		response.chunks.push_back(Response::bytes_type());
 	
 	ByteTypes::byte_type *	end;
 
@@ -330,7 +344,12 @@ void	CGI::handle(Request & request, Response & response)
 	if (!this->polls.isReady(this->in))
 	{
 		if (now - this->last_modified > CGI_TIMEOUT)
+		{
+			if (response.trans_mode == Response::tChunked)
+				response.chunks.push_back(Response::bytes_type());
 			this->_finishRecieving(response);
+		}
+
 		return ;
 	}
 	
@@ -338,19 +357,33 @@ void	CGI::handle(Request & request, Response & response)
 
 	end = this->buf + read(this->in, this->buf, this->buf_size);
 
-	if (response.options.size() > 1 && end - buf)
+	if (response.chunks.empty())
 		response.chunks.push_back(Response::bytes_type());
+
+	// if (response.options.size() > 1 && end - buf)
+	// 	response.chunks.push_back(Response::bytes_type());
 
 	Response::bytes_type &	chunk = response.chunks.back();
 
 	chunk.insert(chunk.end(), this->buf, end);
 
-	if (response.options.empty() || response.options.size() == 1)
+	if (!this->_header_extracted)
 		this->_getHeaderFromCGI(response, chunk);
 	
-	if (response.options.empty() || response.options.size() == 1)
+	if (!this->_header_extracted)
 		return ;
 	
+	try
+	{
+		if (!response.status && response.trans_mode == Response::tChunked)
+			this->_setResponseStatus(response);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
+		response.badResponse(500);
+	}
+
 	if (!this->_msgRecieved(response))
 		return ;
 

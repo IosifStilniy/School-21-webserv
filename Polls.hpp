@@ -16,7 +16,7 @@ class Polls
 	private:
 		size_t	_capacity;
 		size_t	_current;
-		size_t	_ready;
+		int		_ready;
 
 
 		void	_realloc(void);
@@ -36,7 +36,7 @@ class Polls
 		void				append(int socket, int flag);
 		pollfd &			back(void);
 		void				setSockOpt(pollfd & poll_struct, int option_name, int option_value);
-		void				poll(int timeout = -1);
+		int					poll(int timeout = -1);
 		int					getNextSocket(void);
 		size_t				getIndex(int socket)		const;
 		bool				isListenSocket(int socket)	const;

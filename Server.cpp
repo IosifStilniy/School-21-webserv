@@ -70,7 +70,7 @@ std::string	Server::_formHeader(Response::header_fields & options, int status)
 		if (!start->second.empty())
 			header.append(start->first + ": " + start->second + NL);
 
-	if (options["Content-Length"].empty())
+	if (options["Transfer-Encoding"].find("chunked") == std::string::npos && options["Content-Length"].empty())
 		header.append("Content-Length: 0" + std::string(NL));
 
 	header.append(NL);
@@ -78,6 +78,63 @@ std::string	Server::_formHeader(Response::header_fields & options, int status)
 	options.clear();
 
 	return (header);
+}
+
+void	Server::_sendPacket(Response::bytes_type & packet, Response & response, int socket)
+{
+	if (packet.empty())
+		return ;
+	
+	size_t	ret = send(socket, &packet[0], packet.size(), 0);
+
+	if (ret == packet.size())
+		return ;
+	
+	if (response.chunks.empty())
+		response.chunks.push_back(Response::bytes_type());
+	
+	if (ret < 0)
+	{
+		std::cerr << "send: " << strerror(errno) << std::endl;
+		ret = 0;
+	}
+
+	Response::bytes_type &	chunk = response.chunks.front();
+
+	chunk.insert(chunk.end(), packet.begin() + ret, packet.end());
+}
+
+void	Server::_formPacket(Response & response, Response::bytes_type & packet)
+{
+	if (!response.options.empty())
+	{
+		std::string		header = this->_formHeader(response.options, response.status);
+
+		std::cout << header << std::flush;
+		packet.insert(packet.end(), header.begin(), header.end());
+		header.clear();
+	}
+
+	while (!response.chunks.empty() && !response.chunks.front().empty())
+	{
+		Response::bytes_type &	chunk = response.chunks.front();
+
+		if (response.trans_mode == Response::tChunked)
+		{
+			std::string	num = ft::num_to_string(chunk.size(), 16) + Request::nl;
+
+			std::cout << num << std::flush;
+			packet.insert(packet.end(), num.begin(), num.end());
+			num.clear();
+		}
+
+		packet.insert(packet.end(), chunk.begin(), chunk.end());
+
+		if (response.trans_mode == Response::tChunked)
+			packet.insert(packet.end(), Request::nl.begin(), Request::nl.end());
+
+		response.chunks.pop_front();
+	}
 }
 
 void	Server::_giveResponse(Maintainer::response_queue & resp_queue, int socket)
@@ -98,46 +155,31 @@ void	Server::_giveResponse(Maintainer::response_queue & resp_queue, int socket)
 		response.con_status = Response::cStd;
 	}
 
-	if (!response.options.empty())
+	Response::bytes_type	packet;
+
+	this->_formPacket(response, packet);
+
+	if (response.trans_mode == Response::tChunked)
 	{
-		std::string		header = this->_formHeader(response.options, response.status);
-
-		std::cout << header << std::flush;
-		send(socket, header.c_str(), header.size(), 0);
-	}
-
-	while (!response.chunks.empty() && !response.chunks.front().empty())
-	{
-		bytes_type &	chunk = response.chunks.front();
-
-		if (response.trans_mode == Response::tChunked)
+		if (response.chunks.empty())
 		{
-			std::string	num = ft::num_to_string(chunk.size()) + NL;
-
-			send(socket, &num[0], num.size(), 0);
+			this->_sendPacket(packet, response, socket);
+			return ;
 		}
 
-		send(socket, &chunk[0], chunk.size(), 0);
+		std::string	zero_chunk = "0" + Request::eof;
 
-		if (response.trans_mode == Response::tChunked)
-			send(socket, NL, sizeof(NL), 0);
-
-		response.chunks.pop_front();
+		packet.insert(packet.end(), zero_chunk.begin(), zero_chunk.end());
+		std::cout << zero_chunk << std::flush;
+		response.trans_mode = Response::tStd;
 	}
-	
-	if (response.chunks.empty() || response.chunks.front().empty())
-	{
-		if (response.trans_mode == Response::tChunked)
-		{
-			send(socket, std::string("0" + Request::eof).c_str(), Request::eof.size() + 1, 0);
-			response.trans_mode = Response::tStd;
-		}
 
-		if (response.con_status == Response::cClose)
-			close(socket);
+	this->_sendPacket(packet, response, socket);
 
-		resp_queue.pop();
-	}
+	if (response.con_status == Response::cClose)
+		close(socket);
+
+	resp_queue.pop();
 }
 
 void	Server::proceed(int timeout)

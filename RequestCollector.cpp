@@ -117,6 +117,7 @@ void	RequestCollector::collect(int socket)
 		requests.push(Request());
 
 	Request *	request = &requests.back();
+
 	byte_type *	crsr = this->_buf;
 	byte_type *	msg_end = this->_buf + recv(socket, this->_buf, BUFSIZE, 0);
 
@@ -125,6 +126,8 @@ void	RequestCollector::collect(int socket)
 		while (crsr < msg_end)
 		{
 			crsr = this->_splitIncomingStream(*request, crsr, msg_end);
+
+			time(&request->last_modified);
 
 			if (!request->isFullyReceived())
 				continue ;

@@ -27,6 +27,8 @@ class CGI
 		std::string							_path;
 		std::map<std::string, std::string>	_env;
 
+		bool	_header_extracted;
+
 		int	in;
 		int	out;
 
