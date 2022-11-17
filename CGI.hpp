@@ -43,17 +43,17 @@ class CGI
 		std::time_t	last_modified;
 
 		void						_runChild(int server_to_cgi[2], int cgi_to_server[2]);
-		void						_setup(Request & request, Response & response);
+		void						_setup(Request & request, Response & response, Request::bytes_type & packet);
 		void						_setEnv(Request & request, std::string const & mounted_path, std::string const & loc_path);
 		std::string::const_iterator	_getPathEdge(std::string const & path, std::string const & delim);
 		std::string					_extractPathInfo(std::string const & requested_path, std::string const & loc_path);
-		std::string					_translatePath(std::string const & mounted_path, std::string const & loc_path);
 		std::string					_extractQueryString(std::string const & requested_path);
 		ft::splited_string			_vectorizeEnv(void);
 		void						_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk);
 		void						_setResponseStatus(Response & response);
 		bool						_msgRecieved(Response & response);
 		void						_finishRecieving(Response & response);
+		void						_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet);
 
 	public:
 		CGI(void);
@@ -62,6 +62,7 @@ class CGI
 		void				handle(Request & request, Response & response);
 		void				setPath(std::map<std::string, std::string> & cgi, std::string const & method);
 		std::string const &	getPath(void);
+		std::string			translatePath(std::string const & mounted_path, std::string const & loc_path);
 };
 
 #endif

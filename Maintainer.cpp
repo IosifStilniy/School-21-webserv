@@ -188,11 +188,19 @@ void	Maintainer::_dispatchRequest(Request & request, Response & response)
 	if (!response.inited)
 		response.init(request, this->_settings);
 	
-	if (!response.cgi.getPath().empty())
+	try
 	{
-		// std::cout << "tut" << std::endl;
-		response.inited = true;
-		response.cgi.handle(request, response);
+		if (!response.cgi.getPath().empty())
+		{
+			response.inited = true;
+			response.cgi.handle(request, response);
+			return ;
+		}
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
+		response.badResponse(500);
 		return ;
 	}
 

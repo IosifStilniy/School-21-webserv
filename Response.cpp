@@ -158,6 +158,7 @@ void	Response::badResponse(int status, std::string error_page)
 	this->inited = true;
 	this->status = status;
 	this->con_status = cClose;
+	this->trans_mode = tStd;
 
 	::close(this->in);
 	this->in = -1;
@@ -378,11 +379,16 @@ void	Response::_listIndexes(void)
 	throw PathException(*this, "not found");
 }
 
-void	Response::checkGetPath()
+void	Response::checkGetPath(void)
 {
-	if (!ft::isDirectory(this->mounted_path))
+	this->checkGetPath(this->mounted_path);
+}
+
+void	Response::checkGetPath(std::string & path)
+{
+	if (!ft::isDirectory(path))
 	{
-		if (ft::exist(this->mounted_path))
+		if (ft::exist(path))
 			return ;
 
 		this->badResponse(404);
@@ -395,8 +401,8 @@ void	Response::checkGetPath()
 		throw PathException(*this, "is directory");
 	}
 
-	if (this->mounted_path.back() != '/')
-		this->mounted_path.append("/");
+	if (path.back() != '/')
+		path.append("/");
 
 	this->_listIndexes();
 }

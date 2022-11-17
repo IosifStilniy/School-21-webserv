@@ -50,7 +50,8 @@ void	Server::startListen(void)
 
 void	Server::_poll(int timeout)
 {
-	this->polls.poll(timeout);
+	if (this->polls.poll(timeout) < 0)
+		std::cerr << "polls: " + std::string(strerror(errno)) << std::endl;
 
 	std::vector<int>	bad_sockets = this->polls.clear();
 
@@ -123,7 +124,7 @@ void	Server::_formPacket(Response & response, Response::bytes_type & packet)
 		{
 			std::string	num = ft::num_to_string(chunk.size(), 16) + Request::nl;
 
-			std::cout << num << std::flush;
+			// std::cout << num << std::flush;
 			packet.insert(packet.end(), num.begin(), num.end());
 			num.clear();
 		}
@@ -170,7 +171,7 @@ void	Server::_giveResponse(Maintainer::response_queue & resp_queue, int socket)
 		std::string	zero_chunk = "0" + Request::eof;
 
 		packet.insert(packet.end(), zero_chunk.begin(), zero_chunk.end());
-		std::cout << zero_chunk << std::flush;
+		// std::cout << zero_chunk << std::flush;
 		response.trans_mode = Response::tStd;
 	}
 

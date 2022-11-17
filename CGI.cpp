@@ -2,13 +2,19 @@
 #include "Response.hpp"
 
 CGI::CGI(void)
-	: _header_extracted(false), stat_loc(-1), buf(new ByteTypes::byte_type[BUFSIZE]), buf_size(BUFSIZE)
+	: _header_extracted(false), in(-1), out(-1), pid(0), stat_loc(-1), buf(new ByteTypes::byte_type[BUFSIZE]), buf_size(BUFSIZE)
 {
 }
 
 CGI::~CGI()
 {
 	delete [] this->buf;
+
+	close(this->in);
+	close(this->out);
+
+	if (this->stat_loc < 0 && this->pid > 0)
+		kill(this->pid, SIGINT);
 }
 
 void	CGI::setPath(std::map<std::string, std::string> & cgi, std::string const & method)
@@ -47,7 +53,7 @@ std::string	CGI::_extractPathInfo(std::string const & requested_path, std::strin
 	return (std::string(spliter, std::find(spliter, requested_path.end(), '?')));
 }
 
-std::string	CGI::_translatePath(std::string const & mounted_path, std::string const & loc_path)
+std::string	CGI::translatePath(std::string const & mounted_path, std::string const & loc_path)
 {
 	return (std::string(mounted_path.begin(), this->_getPathEdge(mounted_path, loc_path)));
 }
@@ -85,13 +91,13 @@ void	CGI::_setEnv(Request & request, std::string const & mounted_path, std::stri
 	this->_env["PATH"] = getenv("PATH");
 	// this->_env["PATH_INFO"] = this->_extractPathInfo(request.getOnlyValue(CONTENT_PATH), loc_path);
 	this->_env["PATH_INFO"] = request.getOnlyValue(CONTENT_PATH);
-	this->_env["PATH_TRANSLATED"] = this->_translatePath(mounted_path, loc_path);
+	this->_env["PATH_TRANSLATED"] = this->translatePath(mounted_path, loc_path);
 	this->_env["QUERY_STRING"] = this->_extractQueryString(request.getOnlyValue(CONTENT_PATH));
 	this->_env["REMOTE_ADDR"];
 	this->_env["REMOTE_PORT"];
 	this->_env["REQUEST_METHOD"] = ft::toUpper(request.getOnlyValue(METHOD));
 	this->_env["REQUEST_URI"] = request.getOnlyValue(CONTENT_PATH);
-	this->_env["SCRIPT_FILENAME"] = this->_translatePath(mounted_path, loc_path);
+	this->_env["SCRIPT_FILENAME"] = this->translatePath(mounted_path, loc_path);
 	this->_env["SCRIPT_NAME"] = std::string(request.getOnlyValue(CONTENT_PATH).begin(), this->_getPathEdge(request.getOnlyValue(CONTENT_PATH), loc_path));
 	this->_env["SERVER_ADDR"];
 	this->_env["SERVER_NAME"] = request.formOptionLine("Host");
@@ -127,8 +133,10 @@ void	CGI::_runChild(int server_to_cgi[2], int cgi_to_server[2])
 	exit(1);
 }
 
-void	CGI::_setup(Request & request, Response & response)
+void	CGI::_setup(Request & request, Response & response, Request::bytes_type & packet)
 {
+	std::cout << std::endl << "start setup" << std::endl;
+
 	this->_setEnv(request, response.mounted_path, response.path_location->first);
 
 	int	server_to_cgi[2];
@@ -153,23 +161,11 @@ void	CGI::_setup(Request & request, Response & response)
 
 	this->polls.purge();
 	this->polls.append(this->out, POLLOUT);
-
-	waitpid(this->pid, &this->stat_loc, WNOHANG | WUNTRACED);
-
-	if (this->stat_loc > 0)
-	{
-		this->pid = 0;
-		this->stat_loc = -1;
-		response.badResponse(500);
-		return ;
-	}
-	
-	this->polls.poll();
-
-	if (this->polls.isReady(this->out))
-		write(this->out, request.raw_header.c_str(), request.raw_header.size());
-
 	this->polls.append(this->in, POLLIN);
+
+	packet.insert(packet.end(), request.raw_header.begin(), request.raw_header.end());
+
+	std::cout << "end setup" << std::endl << std::endl;
 }
 
 void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
@@ -286,19 +282,14 @@ bool	CGI::_msgRecieved(Response & response)
 
 void	CGI::_finishRecieving(Response & response)
 {
-	try
-	{
-		if (!response.status)
-			this->_setResponseStatus(response);
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-		response.badResponse(500);
-	}
+	if (!response.status)
+		this->_setResponseStatus(response);
 
 	close(this->in);
 	close(this->out);
+
+	this->in = -1;
+	this->out = -1;
 
 	if (this->stat_loc < 0)
 		kill(this->pid, SIGINT);
@@ -307,13 +298,46 @@ void	CGI::_finishRecieving(Response & response)
 	this->stat_loc = -1;
 }
 
-void	CGI::handle(Request & request, Response & response)
+void	CGI::_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet)
 {
-	if ((response.status && response.trans_mode != Response::tChunked) || request.tr_state == Request::tChunked)
+	while (!chunks.empty())
+	{
+		packet.insert(packet.end(), chunks.front().begin(), chunks.front().end());
+		chunks.pop_front();
+	}
+
+	if (packet.empty())
 		return ;
 
+	time(&this->last_modified);
+
+	ssize_t	ret = 0;
+
+	if (packet.size())
+	{
+		std::cout << "before write " << this->polls[this->out]->revents << std::endl;
+		ret = write(this->out, &packet[0], packet.size());
+		std::cout << "after write" << std::endl;
+	}
+	
+	if (ret < 0)
+		throw std::runtime_error("write: " + std::string(strerror(errno)));
+
+	if (static_cast<size_t>(ret) == packet.size())
+		return ;
+	
+	chunks.push_back(Request::bytes_type(packet.begin() + ret, packet.end()));
+}
+
+void	CGI::handle(Request & request, Response & response)
+{
+	if ((response.status && response.trans_mode != Response::tChunked) /* || request.tr_state == Request::tChunked */)
+		return ;
+
+	Request::bytes_type	packet;
+
 	if (!this->pid)
-		this->_setup(request, response);
+		this->_setup(request, response, packet);
 	
 	if (response.status && response.trans_mode != Response::tChunked)
 		return ;
@@ -330,12 +354,8 @@ void	CGI::handle(Request & request, Response & response)
 	
 	this->polls.poll(0);
 
-	while (!request.chunks.empty() && this->polls.isReady(this->out))
-	{
-		write(this->out, &request.chunks.front().front(), request.chunks.front().size());
-		request.chunks.pop_front();
-		time(&this->last_modified);
-	}
+	if (this->polls.isReady(this->out))
+		this->_writePacket(request.chunks, packet);
 	
 	ByteTypes::byte_type *	end;
 
@@ -373,16 +393,8 @@ void	CGI::handle(Request & request, Response & response)
 	if (!this->_header_extracted)
 		return ;
 	
-	try
-	{
-		if (!response.status && response.trans_mode == Response::tChunked)
-			this->_setResponseStatus(response);
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-		response.badResponse(500);
-	}
+	if (!response.status && response.trans_mode == Response::tChunked)
+		this->_setResponseStatus(response);
 
 	if (!this->_msgRecieved(response))
 		return ;

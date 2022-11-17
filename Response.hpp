@@ -82,6 +82,7 @@ class Response
 		std::string const &	chooseErrorPageSource(void);
 		std::string const &	chooseErrorPageSource(int status);
 		void				checkGetPath(void);
+		void				checkGetPath(std::string & path);
 		void				checkPutPath(void);
 };
 

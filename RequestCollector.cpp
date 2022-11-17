@@ -121,6 +121,9 @@ void	RequestCollector::collect(int socket)
 	byte_type *	crsr = this->_buf;
 	byte_type *	msg_end = this->_buf + recv(socket, this->_buf, BUFSIZE, 0);
 
+	if (msg_end < crsr)
+		throw std::runtime_error("recv: " + std::string(strerror(errno)));
+
 	try
 	{
 		while (crsr < msg_end)
