@@ -5,9 +5,7 @@ const std::string Request::nl(NL);
 
 Request::Request(void)
 	: content_length(0), is_good(true), tr_state(tStd), last_modified(time(NULL))
-{
-	chunks.push_back(bytes_type());
-}
+{}
 
 void	Request::setValues(ft::key_value_type const & field_values)
 {

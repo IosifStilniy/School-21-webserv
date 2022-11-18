@@ -1,5 +1,9 @@
 #include "CGI.hpp"
 #include "Response.hpp"
+#include "exceptions.hpp"
+
+size_t	eated;
+size_t	sended;
 
 CGI::CGI(void)
 	: _header_extracted(false), in(-1), out(-1), pid(0), stat_loc(-1), buf(new ByteTypes::byte_type[BUFSIZE]), buf_size(BUFSIZE)
@@ -112,6 +116,9 @@ void	CGI::_setEnv(Request & request, std::string const & mounted_path, std::stri
 
 void	CGI::_runChild(int server_to_cgi[2], int cgi_to_server[2])
 {
+	fcntl(server_to_cgi[0], F_SETFL, O_NONBLOCK);
+	fcntl(cgi_to_server[1], F_SETFL, O_NONBLOCK);
+
 	dup2(server_to_cgi[0], 0);
 	dup2(cgi_to_server[1], 1);
 
@@ -137,15 +144,21 @@ void	CGI::_setup(Request & request, Response & response, Request::bytes_type & p
 {
 	std::cout << std::endl << "start setup" << std::endl;
 
+	eated = 0;
+	sended = 0;
+
 	this->_setEnv(request, response.mounted_path, response.path_location->first);
 
 	int	server_to_cgi[2];
 	int	cgi_to_server[2];
 
-	pipe(server_to_cgi);
-	pipe(cgi_to_server);
+	if (pipe(server_to_cgi) || pipe(cgi_to_server))
+		throw CGIException(response, "pipe: " + std::string(strerror(errno)));
 
 	this->pid = fork();
+
+	if (this->pid < 0)
+		throw CGIException(response, "fork: " + std::string(strerror(errno)));
 
 	if (!this->pid)
 		this->_runChild(server_to_cgi, cgi_to_server);
@@ -165,7 +178,7 @@ void	CGI::_setup(Request & request, Response & response, Request::bytes_type & p
 
 	packet.insert(packet.end(), request.raw_header.begin(), request.raw_header.end());
 
-	std::cout << "end setup" << std::endl << std::endl;
+	std::cout << "end setup " << packet.size() << std::endl << std::endl;
 }
 
 void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
@@ -180,8 +193,8 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 	if (repited_req_eof == chunk.end())
 		return ;
 	
-	// std::cout << "raw cgi header:" << std::endl;
-	// std::cout << std::string(chunk.begin(), eof) << std::endl;
+	// std::cout << "raw cgi header: " << repited_req_eof - chunk.begin() + Request::eof.size() << std::endl;
+	// std::cout << std::string(chunk.begin(), repited_req_eof) << std::endl;
 
 	ft::splited_string	splited = ft::split(std::string(chunk.begin(), eof), "\n");
 	ft::key_value_type	field_value;
@@ -248,7 +261,7 @@ void	CGI::_setResponseStatus(Response & response)
 		return ;
 	}
 
-	throw std::runtime_error("undefined status from CGI");
+	throw CGIException(response, "undefined status from CGI");
 }
 
 static void	fillTail(Response::bytes_type & tail, Response::chunks_type const & chunks)
@@ -269,6 +282,9 @@ bool	CGI::_msgRecieved(Response & response)
 	if (response.trans_mode != Response::tChunked && response.getContentLength() < strtoul(response.options["Content-Length"].c_str(), NULL, 10))
 		return (false);
 	
+	if (this->stat_loc >= 0)
+		return (true);
+	
 	Response::bytes_type	tail;
 
 	tail.reserve(Request::eof.size());
@@ -276,7 +292,7 @@ bool	CGI::_msgRecieved(Response & response)
 
 	if (tail.size() != Request::eof.size())
 		return (false);
-
+	
 	return (std::equal(tail.begin(), tail.end(), Request::eof.begin()));
 }
 
@@ -298,40 +314,31 @@ void	CGI::_finishRecieving(Response & response)
 	this->stat_loc = -1;
 }
 
-void	CGI::_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet)
+void	CGI::_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet, Response & response)
 {
-	while (!chunks.empty())
-	{
-		packet.insert(packet.end(), chunks.front().begin(), chunks.front().end());
-		chunks.pop_front();
-	}
-
 	if (packet.empty())
 		return ;
 
-	time(&this->last_modified);
-
-	ssize_t	ret = 0;
-
-	if (packet.size())
-	{
-		std::cout << "before write " << this->polls[this->out]->revents << std::endl;
-		ret = write(this->out, &packet[0], packet.size());
-		std::cout << "after write" << std::endl;
-	}
+	ssize_t	ret = write(this->out, &packet[0], packet.size());
 	
-	if (ret < 0)
-		throw std::runtime_error("write: " + std::string(strerror(errno)));
+	time(&this->last_modified);
+	
+	if (ret < 0 || static_cast<size_t>(ret) > packet.size())
+		throw BadResponseException(500, response, "write: " + std::string(strerror(errno)));
+
+	eated += ret;
 
 	if (static_cast<size_t>(ret) == packet.size())
 		return ;
 	
+	std::cout << "returned: " << ret << " actual: " << packet.size() << std::endl;
+
 	chunks.push_back(Request::bytes_type(packet.begin() + ret, packet.end()));
 }
 
 void	CGI::handle(Request & request, Response & response)
 {
-	if ((response.status && response.trans_mode != Response::tChunked) /* || request.tr_state == Request::tChunked */)
+	if (response.status && response.trans_mode != Response::tChunked)
 		return ;
 
 	Request::bytes_type	packet;
@@ -342,22 +349,22 @@ void	CGI::handle(Request & request, Response & response)
 	if (response.status && response.trans_mode != Response::tChunked)
 		return ;
 
+	while (!request.chunks.empty() && packet.size() < MAX_WRITE_BUF)
+	{
+		Request::bytes_type	chunk = request.chunks.front();
+
+		packet.insert(packet.end(), chunk.begin(), chunk.end());
+		request.chunks.pop_front();
+	}
+
 	waitpid(this->pid, &this->stat_loc, WNOHANG | WUNTRACED);
 
-	if (this->stat_loc > 0)
-	{
-		this->pid = 0;
-		this->stat_loc = -1;
-		response.badResponse(500);
-		return ;
-	}
-	
 	this->polls.poll(0);
 
-	if (this->polls.isReady(this->out))
-		this->_writePacket(request.chunks, packet);
-	
-	ByteTypes::byte_type *	end;
+	if (!packet.empty() && this->polls.isReady(this->out) && this->stat_loc < 0)
+		this->_writePacket(request.chunks, packet, response);
+	else if (!packet.empty())
+		request.chunks.push_back(Request::bytes_type(packet.begin(), packet.end()));
 
 	std::time_t	now = time(NULL);
 
@@ -367,6 +374,12 @@ void	CGI::handle(Request & request, Response & response)
 		{
 			if (response.trans_mode == Response::tChunked)
 				response.chunks.push_back(Response::bytes_type());
+
+			std::cout << "stat_loc: " << this->stat_loc << std::endl;
+			std::cout << "eated: " << eated << std::endl;
+			std::cout << "eated + recieved: " << eated + request.getContentLength() << std::endl;
+			std::cout << "sended: " << sended << std::endl;
+
 			this->_finishRecieving(response);
 		}
 
@@ -375,17 +388,17 @@ void	CGI::handle(Request & request, Response & response)
 	
 	this->last_modified = now;
 
-	end = this->buf + read(this->in, this->buf, this->buf_size);
+	ssize_t	ret = read(this->in, this->buf, this->buf_size);
+
+	if (ret < 0)
+		throw CGIException(response, "read: " + std::string(strerror(errno)));
 
 	if (response.chunks.empty())
 		response.chunks.push_back(Response::bytes_type());
 
-	// if (response.options.size() > 1 && end - buf)
-	// 	response.chunks.push_back(Response::bytes_type());
-
 	Response::bytes_type &	chunk = response.chunks.back();
 
-	chunk.insert(chunk.end(), this->buf, end);
+	chunk.insert(chunk.end(), this->buf, this->buf + ret);
 
 	if (!this->_header_extracted)
 		this->_getHeaderFromCGI(response, chunk);
@@ -393,13 +406,13 @@ void	CGI::handle(Request & request, Response & response)
 	if (!this->_header_extracted)
 		return ;
 	
+	sended += response.getContentLength();
+
 	if (!response.status && response.trans_mode == Response::tChunked)
 		this->_setResponseStatus(response);
 
-	if (!this->_msgRecieved(response))
-		return ;
-
-	this->_finishRecieving(response);
+	if (this->_msgRecieved(response))
+		this->_finishRecieving(response);
 }
 
 std::string const &	CGI::getPath(void)

@@ -52,10 +52,10 @@ ssize_t	Response::readFile(std::string const & file_path)
 		this->in = open(file_path.c_str(), O_RDONLY | O_NONBLOCK);
 
 	if (this->in == -1)
-		return (-1);
+		throw PathException(404, *this, "not found");
 
 	if (this->polls.poll(0) < 0)
-		throw std::runtime_error("poll: " + std::string(strerror(errno)));
+		throw BadResponseException(500, *this, "poll: " + std::string(strerror(errno)));
 
 	if (!this->polls.isGood(this->in))
 	{
@@ -69,7 +69,7 @@ ssize_t	Response::readFile(std::string const & file_path)
 	ssize_t	length = read(this->in, this->buf, this->buf_size);
 
 	if (length < 0)
-		throw std::runtime_error("read: " + std::string(strerror(errno)));
+		throw BadResponseException(500, *this, "read: " + std::string(strerror(errno)));
 
 	if (!length)
 	{
@@ -205,8 +205,7 @@ void	Response::_checkSettings(Request & request)
 		
 		this->options["Connection"].append(" upgrade");
 
-		this->badResponse(426);
-		throw ServerSettingsException(*this, request.getOnlyValue(HTTP_V) + ": unsupported protocol");
+		throw ServerSettingsException(426, *this, request.getOnlyValue(HTTP_V) + ": unsupported protocol");
 	}
 
 	if (std::find(Response::implemented_methods.begin(), Response::implemented_methods.end(), request.getOnlyValue(METHOD)) == Response::implemented_methods.end())
@@ -217,8 +216,7 @@ void	Response::_checkSettings(Request & request)
 		if (this->options["Allow"].back() == ',')
 			this->options["Allow"].pop_back();
 
-		this->badResponse(501);
-		throw ServerSettingsException(*this, request.getOnlyValue(METHOD) + ": unimplemented method");
+		throw ServerSettingsException(501, *this, request.getOnlyValue(METHOD) + ": unimplemented method");
 	}
 
 }
@@ -246,7 +244,7 @@ void	Response::_checkLocation(Request & request)
 	if (!this->path_location)
 	{
 		this->badResponse(404);
-		throw BadRequestException(*this, "location: " + request.getOnlyValue("content-path") + ": undefined");
+		throw BadRequestException(404, *this, "location: " + request.getOnlyValue("content-path") + ": undefined");
 	}
 
 	std::set<std::string> const *	allowed_methods = &this->path_location->second.methods;
@@ -264,16 +262,11 @@ void	Response::_checkLocation(Request & request)
 		if (this->options["Allow"].back() == ',')
 			this->options["Allow"].pop_back();
 
-		this->badResponse(405);
-
-		throw MethodException(*this, request.getOnlyValue(METHOD), "method not allowed");
+		throw MethodException(405, *this, request.getOnlyValue(METHOD), "method not allowed");
 	}
 
 	if (strtoul(request.getOnlyValue("Content-Length").c_str(), NULL, 10) > this->path_location->second.size_limit)
-	{
-		this->badResponse(413);
 		throw SizeLimitException(*this, request.getOnlyValue("Content-Length"));
-	}
 }
 
 void	Response::_getEndPointLocation(Location::locations_type & locations, std::string const & method)
@@ -375,8 +368,7 @@ void	Response::_listIndexes(void)
 		return ;
 	}
 
-	this->badResponse(404);
-	throw PathException(*this, "not found");
+	throw PathException(404, *this, "not found");
 }
 
 void	Response::checkGetPath(void)
@@ -391,15 +383,11 @@ void	Response::checkGetPath(std::string & path)
 		if (ft::exist(path))
 			return ;
 
-		this->badResponse(404);
-		throw PathException(*this, "not found");
+		throw PathException(404, *this, "not found");
 	}
 
 	if (this->path_location->second.indexes.empty() && this->settings->def_settings.indexes.empty())
-	{
-		this->badResponse(403, this->chooseErrorPageSource());
-		throw PathException(*this, "is directory");
-	}
+		throw PathException(403, *this, "is directory", this->chooseErrorPageSource());
 
 	if (path.back() != '/')
 		path.append("/");
@@ -412,10 +400,7 @@ void	Response::checkPutPath(void)
 	ft::splited_string	splited = ft::split(this->mounted_path.substr(this->path_location->second.root.size()), "/");
 
 	if (splited[0].empty() || splited.back().back() == '/')
-	{
-		this->badResponse(403, this->chooseErrorPageSource());
-		throw PathException(*this, "filename expected");
-	}
+		throw PathException(403, *this, "filename expected", this->chooseErrorPageSource());
 
 	splited.pop_back();
 
@@ -432,10 +417,7 @@ void	Response::checkPutPath(void)
 			continue ;
 
 		if (mkdir(path.c_str(), MOD))
-		{
-			this->badResponse(500);
-			throw PathException(*this, strerror(errno));
-		}
+			throw PathException(500, *this, "mkdir: " + std::string(strerror(errno)));
 	}
 }
 
@@ -454,25 +436,14 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 	this->options["Server"] = "webserv/0.1";
 
 	if (!request.is_good)
-	{
-		this->badResponse(400);
-		return ;
-	}
+		throw BadRequestException(400, *this, "request not good");
 
-	try
-	{
-		this->_getSettings(request, settings_collection);
-		this->_getLocation(this->settings->def_settings.locations, request);
+	this->_getSettings(request, settings_collection);
+	this->_getLocation(this->settings->def_settings.locations, request);
 
-		if (!this->path_location->second.redir.second.empty())
-		{
-			this->redirect();
-			return ;
-		}
-	}
-	catch(const std::exception& e)
+	if (!this->path_location->second.redir.second.empty())
 	{
-		std::cerr << e.what() << std::endl;
+		this->redirect();
 		return ;
 	}
 

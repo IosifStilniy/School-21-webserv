@@ -3,8 +3,7 @@
 
 RequestCollector::RequestCollector(void)
 	: _buf(new byte_type[BUFSIZE])
-{
-}
+{}
 
 RequestCollector::~RequestCollector()
 {
@@ -52,6 +51,9 @@ RequestCollector::byte_type *	RequestCollector::_readHeader(Request & request, b
 
 		return (msg_start);
 	}
+
+	if (chunks.empty())
+		chunks.push_back(Request::bytes_type());
 
 	chunks.back().insert(chunks.back().end(), msg_start, eof);
 
@@ -122,7 +124,10 @@ void	RequestCollector::collect(int socket)
 	byte_type *	msg_end = this->_buf + recv(socket, this->_buf, BUFSIZE, 0);
 
 	if (msg_end < crsr)
-		throw std::runtime_error("recv: " + std::string(strerror(errno)));
+	{
+		std::cerr << "recv: " << strerror(errno) << std::endl;
+		request->is_good = false;
+	}
 
 	try
 	{

@@ -12,6 +12,7 @@
 
 # include "Response.hpp"
 # include "RequestCollector.hpp"
+# include "exceptions.hpp"
 
 # define PTR_FUNC(i) ((this->*(this->_methods[i])))
 

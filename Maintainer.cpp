@@ -45,29 +45,12 @@ void	Maintainer::_get(Request & request, Response & response)
 	if (!response.inited)
 	{
 		response.inited = true;
-		try
-		{
-			response.checkGetPath();
-		}
-		catch(const std::exception& e)
-		{
-			std::cerr << e.what() << '\n';
-			return ;
-		}
+		response.checkGetPath();
 	}
 
 	ssize_t	length;
 
-	try
-	{
-		length = response.readFile();
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-		response.badResponse(500);
-		return ;
-	}
+	length = response.readFile();
 	
 	if (response.trans_mode == Response::tChunked && static_cast<size_t>(length) < response.buf_size)
 	{
@@ -79,12 +62,6 @@ void	Maintainer::_get(Request & request, Response & response)
 
 	if (response.status)
 		return ;
-
-	if (!response.polls.isGood(response.in) && length < 0)
-	{
-		response.badResponse(404);
-		return ;
-	}
 
 	if (response.polls.isGood(response.in))
 	{
@@ -108,15 +85,7 @@ void	Maintainer::_put(Request & request, Response & response)
 	if (!response.inited)
 	{
 		response.inited = true;
-		try
-		{
-			response.checkPutPath();
-		}
-		catch(const std::exception& e)
-		{
-			std::cerr << e.what() << '\n';
-			return ;
-		}
+		response.checkPutPath();
 	}
 
 	if (request.tr_state == Request::tChunked && (request.chunks.empty() || request.chunks.front().empty()))
@@ -128,10 +97,7 @@ void	Maintainer::_put(Request & request, Response & response)
 		return ;
 	
 	if (!request.empty())
-	{
-		response.badResponse(500);
-		return ;
-	}
+		throw BadResponseException(500, response, "request not handled");
 
 	close(response.out);
 	response.out = -1;
@@ -162,23 +128,13 @@ void	Maintainer::_delete(Request & request, Response & response)
 		return ;
 
 	if (response.mounted_path == response.path_location->second.root)
-	{
-		response.badResponse(403, response.chooseErrorPageSource());
-		return ;
-	}
+		throw PathException(403, response, "is directory", response.chooseErrorPageSource());
 
 	if (!ft::exist(response.mounted_path))
-	{
-		response.badResponse(404);
-		return ;
-	}
+		throw PathException(404, response, "not found");
 
 	if (std::remove(response.mounted_path.c_str()))
-	{
-		std::cerr << "remove: " << strerror(errno) << std::endl;
-		response.badResponse(500);
-		return ;
-	}
+		throw BadResponseException(500, response, "remove: " + std::string(strerror(errno)));
 
 	response.status = 200;
 }
@@ -188,19 +144,10 @@ void	Maintainer::_dispatchRequest(Request & request, Response & response)
 	if (!response.inited)
 		response.init(request, this->_settings);
 	
-	try
+	if (!response.cgi.getPath().empty())
 	{
-		if (!response.cgi.getPath().empty())
-		{
-			response.inited = true;
-			response.cgi.handle(request, response);
-			return ;
-		}
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << e.what() << std::endl;
-		response.badResponse(500);
+		response.inited = true;
+		response.cgi.handle(request, response);
 		return ;
 	}
 
@@ -235,10 +182,17 @@ void	Maintainer::proceedRequests(RequestCollector & requests)
 		if (responses.empty())
 			responses.push(Response());
 
-		if (!req_queue.front().isFullyReceived() && req_queue.front().isStale())
-			responses.back().badResponse(408);
-		else if (!req_queue.front().options.empty())
-			this->_dispatchRequest(req_queue.front(), responses.back());
+		try
+		{
+			if (!req_queue.front().isFullyReceived() && req_queue.front().isStale())
+				responses.back().badResponse(408);
+			else if (!req_queue.front().options.empty())
+				this->_dispatchRequest(req_queue.front(), responses.back());
+		}
+		catch(const std::exception& e)
+		{
+			std::cerr << e.what() << std::endl;
+		}
 
 		if (!responses.back().status
 			|| (responses.back().trans_mode == Response::tChunked

@@ -19,6 +19,10 @@
 #  define CGI_TIMEOUT 5
 # endif
 
+# ifndef MAX_WRITE_BUF
+#  define MAX_WRITE_BUF KB(60)
+# endif
+
 class Response;
 
 class CGI
@@ -53,7 +57,7 @@ class CGI
 		void						_setResponseStatus(Response & response);
 		bool						_msgRecieved(Response & response);
 		void						_finishRecieving(Response & response);
-		void						_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet);
+		void						_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet, Response & response);
 
 	public:
 		CGI(void);

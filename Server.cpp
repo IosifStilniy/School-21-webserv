@@ -1,5 +1,7 @@
 #include "Server.hpp"
 
+size_t	serv_sended;
+
 Server::Server(void)
 	: maintainer(this->settings)
 {
@@ -91,14 +93,14 @@ void	Server::_sendPacket(Response::bytes_type & packet, Response & response, int
 	if (ret == packet.size())
 		return ;
 	
-	if (response.chunks.empty())
-		response.chunks.push_back(Response::bytes_type());
-	
 	if (ret < 0)
 	{
 		std::cerr << "send: " << strerror(errno) << std::endl;
 		ret = 0;
 	}
+
+	if (response.chunks.empty())
+		response.chunks.push_back(Response::bytes_type());
 
 	Response::bytes_type &	chunk = response.chunks.front();
 
@@ -112,8 +114,8 @@ void	Server::_formPacket(Response & response, Response::bytes_type & packet)
 		std::string		header = this->_formHeader(response.options, response.status);
 
 		std::cout << header << std::flush;
+		serv_sended = 0;
 		packet.insert(packet.end(), header.begin(), header.end());
-		header.clear();
 	}
 
 	while (!response.chunks.empty() && !response.chunks.front().empty())
@@ -126,10 +128,11 @@ void	Server::_formPacket(Response & response, Response::bytes_type & packet)
 
 			// std::cout << num << std::flush;
 			packet.insert(packet.end(), num.begin(), num.end());
-			num.clear();
 		}
 
 		packet.insert(packet.end(), chunk.begin(), chunk.end());
+
+		serv_sended += chunk.size();
 
 		if (response.trans_mode == Response::tChunked)
 			packet.insert(packet.end(), Request::nl.begin(), Request::nl.end());
@@ -171,6 +174,8 @@ void	Server::_giveResponse(Maintainer::response_queue & resp_queue, int socket)
 		std::string	zero_chunk = "0" + Request::eof;
 
 		packet.insert(packet.end(), zero_chunk.begin(), zero_chunk.end());
+
+		std::cout << "sended in server: " << serv_sended << std::endl;
 		// std::cout << zero_chunk << std::flush;
 		response.trans_mode = Response::tStd;
 	}
@@ -201,14 +206,15 @@ void	Server::proceed(int timeout)
 	while (socket)
 	{
 		// std::cout << "socket " << socket << " " << this->polls[socket]->revents << std::endl;
+
+		if ((this->polls[socket]->revents & POLLOUT) == POLLOUT)
+			this->_giveResponse(this->maintainer[socket], socket);
+
 		if ((this->polls[socket]->revents & POLLIN) == POLLIN)
 			this->req_coll.collect(socket);
 		
 		// if (!this->req_coll[socket].empty())
 		// 	this->req_coll[socket].front().printOptions(this->req_coll[socket].front().options);
-		
-		if ((this->polls[socket]->revents & POLLOUT) == POLLOUT)
-			this->_giveResponse(this->maintainer[socket], socket);
 
 		socket = this->polls.getNextSocket();
 	}

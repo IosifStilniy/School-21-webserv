@@ -6,18 +6,20 @@
 
 # include "Response.hpp"
 
-class BadRequestException : public std::exception
+class BadResponseException : public std::exception
 {
 	protected:
-		Response const &	_ref;
-		std::string			_msg;
+		Response &	_ref;
+		std::string	_msg;
 
 	public:
-		BadRequestException(Response const & ref, std::string const & txt)
+		BadResponseException(int status, Response & ref, std::string const & txt)
 			: _ref(ref), _msg("bad request: " + txt)
-		{};
+		{
+			this->_ref.badResponse(status);
+		};
 
-		~BadRequestException()	throw()
+		~BadResponseException()	throw()
 		{};
 
 		const char *	what(void)	const	throw()
@@ -26,51 +28,62 @@ class BadRequestException : public std::exception
 		};
 };
 
+class CGIException : public BadResponseException
+{
+	public:
+		CGIException(Response & ref, std::string const & txt)
+			: BadResponseException(500, ref, "cgi: " + txt)
+		{};
+};
+
+class BadRequestException : public BadResponseException
+{
+	public:
+		BadRequestException(int status, Response & ref, std::string const & txt)
+			: BadResponseException(status, ref, "bad request: " + txt)
+		{};
+};
+
 class ServerSettingsException : public BadRequestException
 {
 	public:
-		ServerSettingsException(Response const & ref, std::string const & txt)
-			: BadRequestException(ref, "settings: ")
-		{
-			this->_msg.append(txt);
-		};
+		ServerSettingsException(int status, Response & ref, std::string const & txt)
+			: BadRequestException(status, ref, "settings: " + txt)
+		{};
 };
 
 class LocationException : public BadRequestException
 {
 	public:
-		LocationException(Response const & ref, std::string const & txt)
-			: BadRequestException(ref, "location: " + ref.path_location->first + ": ")
-		{
-			this->_msg.append(txt);
-		};
+		LocationException(int status, Response & ref, std::string const & txt)
+			: BadRequestException(status, ref, "location: " + ref.path_location->first + ": " + txt)
+		{};
 };
 
 class PathException : public LocationException
 {
 	public:
-		PathException(Response const & ref, std::string const & txt)
-			: LocationException(ref, "mounted path: " + ref.mounted_path + ": ")
+		PathException(int status, Response & ref, std::string const & txt, std::string const & is_dir_err = std::string())
+			: LocationException(status, ref, "mounted path: " + ref.mounted_path + ": " + txt)
 		{
-			this->_msg.append(txt);
-		}
+			if (!is_dir_err.empty())
+				this->_ref.badResponse(status, is_dir_err);
+		};
 };
 
 class MethodException : public LocationException
 {
 	public:
-		MethodException(Response const & ref, std::string const & method, std::string const & txt)
-			: LocationException(ref, "method: " + method + ": ")
-		{
-			this->_msg.append(txt);
-		}
+		MethodException(int status, Response & ref, std::string const & method, std::string const & txt)
+			: LocationException(status, ref, "method: " + method + ": " + txt)
+		{};
 };
 
 class SizeLimitException : public LocationException
 {
 	public:
-		SizeLimitException(Response const & ref, std::string const & request_size)
-			: LocationException(ref, "size limit excessed: ")
+		SizeLimitException(Response & ref, std::string const & request_size)
+			: LocationException(413, ref, "size limit excessed: ")
 		{
 			this->_msg.append(request_size + "/" + ft::num_to_string(this->_ref.path_location->second.size_limit) + " B");
 		}
