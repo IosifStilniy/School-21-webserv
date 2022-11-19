@@ -6,6 +6,24 @@
 
 # include "Response.hpp"
 
+class IncompleteResponseException : public std::exception
+{
+	protected:
+		std::string	_msg;
+	public:
+		IncompleteResponseException(std::string const & txt)
+			: _msg(txt)
+		{};
+
+		~IncompleteResponseException() throw()
+		{};
+
+		const char *	what(void)	const	throw()
+		{
+			return this->_msg.c_str();
+		};
+};
+
 class BadResponseException : public std::exception
 {
 	protected:

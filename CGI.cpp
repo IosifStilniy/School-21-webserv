@@ -3,7 +3,6 @@
 #include "exceptions.hpp"
 
 size_t	eated;
-size_t	sended;
 
 CGI::CGI(void)
 	: _header_extracted(false), in(-1), out(-1), pid(0), stat_loc(-1), buf(new ByteTypes::byte_type[BUFSIZE]), buf_size(BUFSIZE)
@@ -21,14 +20,12 @@ CGI::~CGI()
 		kill(this->pid, SIGINT);
 }
 
-void	CGI::setPath(std::map<std::string, std::string> & cgi, std::string const & method)
+void	CGI::setPath(std::string const & cgi)
 {
 	if (cgi.empty())
 		return ;
 
-	this->_path = cgi[method];
-	if (this->_path.empty())
-		this->_path = cgi[""];
+	this->_path = cgi;
 }
 
 std::string::const_iterator	CGI::_getPathEdge(std::string const & path, std::string const & delim)
@@ -129,12 +126,13 @@ void	CGI::_runChild(int server_to_cgi[2], int cgi_to_server[2])
 
 	std::list<std::string>	args;
 
-	args.push_back(this->_path);
+	if (this->_path != "binary")
+		args.push_back(this->_path);
 	args.push_back(this->_env["SCRIPT_FILENAME"]);
 
 	ft::splited_string	vec = this->_vectorizeEnv();
 
-	execve(this->_path.c_str(), ft::containerToArray(args), ft::containerToArray(vec));
+	execve(args.front().c_str(), ft::containerToArray(args), ft::containerToArray(vec));
 
 	std::cerr << "execve: " + this->_path << ": " << strerror(errno) << std::endl;
 	exit(1);
@@ -142,10 +140,7 @@ void	CGI::_runChild(int server_to_cgi[2], int cgi_to_server[2])
 
 void	CGI::_setup(Request & request, Response & response, Request::bytes_type & packet)
 {
-	std::cout << std::endl << "start setup" << std::endl;
-
 	eated = 0;
-	sended = 0;
 
 	this->_setEnv(request, response.mounted_path, response.path_location->first);
 
@@ -177,8 +172,6 @@ void	CGI::_setup(Request & request, Response & response, Request::bytes_type & p
 	this->polls.append(this->in, POLLIN);
 
 	packet.insert(packet.end(), request.raw_header.begin(), request.raw_header.end());
-
-	std::cout << "end setup " << packet.size() << std::endl << std::endl;
 }
 
 void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
@@ -188,7 +181,8 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 	if (eof == chunk.end())
 		return ;
 	
-	Response::bytes_type::iterator	repited_req_eof = std::search(eof + 4, chunk.end(), Request::eof.begin(), Request::eof.end());
+	// Response::bytes_type::iterator	repited_req_eof = std::search(eof + 4, chunk.end(), Request::eof.begin(), Request::eof.end());
+	Response::bytes_type::iterator	repited_req_eof = eof;
 
 	if (repited_req_eof == chunk.end())
 		return ;
@@ -207,13 +201,18 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 
 	repited_req_eof += Request::eof.size();
 
+	Response::bytes_type	remain;
+
 	if (repited_req_eof <= chunk.end())
-		response.chunks.push_back(Response::bytes_type(repited_req_eof, chunk.end()));
+		remain.assign(repited_req_eof, chunk.end());
 
 	response.chunks.pop_front();
 
+	if (!remain.empty())
+		response.chunks.push_front(remain);
+
 	if ((response.options["Transfer-Encoding"].empty() || response.options["Transfer-Encoding"].find("chunked") != std::string::npos)
-		&& response.options["Content-Length"].empty())
+		&& response.options["Content-Length"].empty() && !remain.empty())
 	{
 		if (response.options["Transfer-Encoding"].find("chunked") == std::string::npos)
 		{
@@ -261,7 +260,8 @@ void	CGI::_setResponseStatus(Response & response)
 		return ;
 	}
 
-	throw CGIException(response, "undefined status from CGI");
+	response.status = 200;
+	// throw CGIException(response, "undefined status from CGI");
 }
 
 static void	fillTail(Response::bytes_type & tail, Response::chunks_type const & chunks)
@@ -279,10 +279,13 @@ static void	fillTail(Response::bytes_type & tail, Response::chunks_type const & 
 
 bool	CGI::_msgRecieved(Response & response)
 {
-	if (response.trans_mode != Response::tChunked && response.getContentLength() < strtoul(response.options["Content-Length"].c_str(), NULL, 10))
+	if (response.trans_mode != Response::tChunked
+		&& response.getContentLength() < strtoul(response.options["Content-Length"].c_str(), NULL, 10))
 		return (false);
 	
-	if (this->stat_loc >= 0)
+	if (this->stat_loc >= 0
+		|| (!response.options["Content-Length"].empty()
+			&& response.getContentLength() >= strtoul(response.options["Content-Length"].c_str(), NULL, 10)))
 		return (true);
 	
 	Response::bytes_type	tail;
@@ -331,9 +334,51 @@ void	CGI::_writePacket(Request::chunks_type & chunks, Request::bytes_type & pack
 	if (static_cast<size_t>(ret) == packet.size())
 		return ;
 	
-	std::cout << "returned: " << ret << " actual: " << packet.size() << std::endl;
+	chunks.push_front(Request::bytes_type(packet.begin() + ret, packet.end()));
+}
 
-	chunks.push_back(Request::bytes_type(packet.begin() + ret, packet.end()));
+void	CGI::_formPacket(Request & request, Request::bytes_type & packet)
+{
+	while (!request.chunks.empty() && packet.size() < MAX_WRITE_BUF)
+	{
+		ssize_t	remain = MAX_WRITE_BUF - packet.size();
+
+		if (remain <= 0)
+			return ;
+
+		Request::bytes_type &			chunk = request.chunks.front();
+		Request::bytes_type::iterator	end = chunk.end();
+
+		if (chunk.size() > static_cast<size_t>(remain))
+			end = chunk.begin() + remain;
+
+		packet.insert(packet.end(), chunk.begin(), end);
+
+		Request::bytes_type	remain_bytes(end, chunk.end());
+
+		request.chunks.pop_front();
+
+		if (!remain_bytes.empty())
+			request.chunks.push_front(remain_bytes);
+	}
+}
+
+void	CGI::_readPacket(Response & response)
+{
+	ssize_t	ret = read(this->in, this->buf, this->buf_size);
+
+	if (ret < 0)
+		throw CGIException(response, "read: " + std::string(strerror(errno)));
+
+	if (response.chunks.empty())
+		response.chunks.push_back(Response::bytes_type());
+
+	Response::bytes_type &	chunk = response.chunks.back();
+
+	chunk.insert(chunk.end(), this->buf, this->buf + ret);
+
+	if (!this->_header_extracted)
+		this->_getHeaderFromCGI(response, chunk);
 }
 
 void	CGI::handle(Request & request, Response & response)
@@ -349,13 +394,8 @@ void	CGI::handle(Request & request, Response & response)
 	if (response.status && response.trans_mode != Response::tChunked)
 		return ;
 
-	while (!request.chunks.empty() && packet.size() < MAX_WRITE_BUF)
-	{
-		Request::bytes_type	chunk = request.chunks.front();
-
-		packet.insert(packet.end(), chunk.begin(), chunk.end());
-		request.chunks.pop_front();
-	}
+	if (request.getContentLength() + packet.size() > MAX_WRITE_BUF || request.tr_state == Request::tStd)
+		this->_formPacket(request, packet);
 
 	waitpid(this->pid, &this->stat_loc, WNOHANG | WUNTRACED);
 
@@ -370,7 +410,7 @@ void	CGI::handle(Request & request, Response & response)
 
 	if (!this->polls.isReady(this->in))
 	{
-		if (now - this->last_modified > CGI_TIMEOUT)
+		if (now - this->last_modified > CGI_TIMEOUT /* || !this->stat_loc */)
 		{
 			if (response.trans_mode == Response::tChunked)
 				response.chunks.push_back(Response::bytes_type());
@@ -378,36 +418,23 @@ void	CGI::handle(Request & request, Response & response)
 			std::cout << "stat_loc: " << this->stat_loc << std::endl;
 			std::cout << "eated: " << eated << std::endl;
 			std::cout << "eated + recieved: " << eated + request.getContentLength() << std::endl;
-			std::cout << "sended: " << sended << std::endl;
 
 			this->_finishRecieving(response);
 		}
+
+		if (this->stat_loc > 0)
+			throw CGIException(response, "exited: " + ft::num_to_string(this->stat_loc));
 
 		return ;
 	}
 	
 	this->last_modified = now;
 
-	ssize_t	ret = read(this->in, this->buf, this->buf_size);
+	this->_readPacket(response);
 
-	if (ret < 0)
-		throw CGIException(response, "read: " + std::string(strerror(errno)));
-
-	if (response.chunks.empty())
-		response.chunks.push_back(Response::bytes_type());
-
-	Response::bytes_type &	chunk = response.chunks.back();
-
-	chunk.insert(chunk.end(), this->buf, this->buf + ret);
-
-	if (!this->_header_extracted)
-		this->_getHeaderFromCGI(response, chunk);
-	
 	if (!this->_header_extracted)
 		return ;
 	
-	sended += response.getContentLength();
-
 	if (!response.status && response.trans_mode == Response::tChunked)
 		this->_setResponseStatus(response);
 

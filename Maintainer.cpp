@@ -62,6 +62,7 @@ void	Maintainer::_get(Request & request, Response & response)
 
 	if (response.status)
 		return ;
+		// throw IncompleteResponseException("response proceeded");
 
 	if (response.polls.isGood(response.in))
 	{
@@ -188,6 +189,10 @@ void	Maintainer::proceedRequests(RequestCollector & requests)
 				responses.back().badResponse(408);
 			else if (!req_queue.front().options.empty())
 				this->_dispatchRequest(req_queue.front(), responses.back());
+		}
+		catch(const IncompleteResponseException & e)
+		{
+			std::cerr << "\r" << e.what() << ": on socket: " << start->first << std::flush;
 		}
 		catch(const std::exception& e)
 		{

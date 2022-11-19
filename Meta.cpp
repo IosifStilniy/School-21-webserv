@@ -85,36 +85,6 @@ void	Meta::_bindErrorPages(std::string const & params, std::map<int, std::string
 		check.close();
 }
 
-void	Meta::_fillCGIInfo(ft::splited_string const & info, std::map<std::string, std::string> & cgi)
-{
-	if (info[0].empty())
-		return ;
-	
-	std::string	path;
-
-	for (ft::splited_string::const_iterator param = info.begin(); param != info.end(); param++)
-	{
-		if (param->front() == '@')
-		{
-			path = param->substr(1);
-			continue ;
-		}
-
-		if (path.empty())
-			throw std::logic_error("cgi example: cgi @path_to_executor [method1] [method2] ... [methodN]: words in [] are optional");
-
-		cgi[*param] = path;
-	}
-
-	if (info.back().front() != '@')
-		return ;
-	
-	if (info.back().size() < 2)
-		throw std::logic_error("cgi example: cgi @path_to_executor [method1] [method2] ... [methodN]: words in [] are optional");
-		
-	cgi[""] = path;
-}
-
 void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 {
 	location.root = ft::split(p_location.params["root"]).back();
@@ -122,13 +92,11 @@ void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 	if (!location.root.empty() && location.root.back() != '/')
 		location.root.push_back('/');
 	
-	this->_fillCGIInfo(ft::split(p_location.params["cgi"]), location.cgi);
-
 	ft::splited_string	splited = ft::split(p_location.params["indexes"]);
 
-	if (splited[0] == "off")
+	/* if (splited[0] == "off")
 		location.indexes.insert(std::string());
-	else if (!splited[0].empty())
+	else */ if (!splited[0].empty())
 		location.indexes = std::set<std::string>(splited.begin(), splited.end());
 
 	splited = ft::split(p_location.params["allow_methods"]);
@@ -157,22 +125,14 @@ void	Meta::_prepareLocation(ParsedEntity & p_location, Location & location)
 		this->_prepareLocation(it->second, location.locations[it->first]);
 }
 
-void	Meta::_prepareServer(ParsedEntity & p_server, Server::Settings & server)
+void	Meta::_prepareHost(std::string const & listen, Server::Settings & server)
 {
-	if (p_server.locations.empty())
-		throw std::logic_error("server must have at least 1 location");
-
-	ft::splited_string	server_names = ft::split(p_server.params["server_names"]);
-	
-	if (!server_names[0].empty())
-		server.server_names = std::set<std::string>(server_names.begin(), server_names.end());
-
-	ft::splited_string	hosts_ports = ft::split(p_server.params["listen"]);
+	ft::splited_string	splited = ft::split(listen);
 	ft::key_value_type	host_port;
 	ft::key_value_type	port_backlog;
 	int					backlog;
 
-	for (ft::splited_string::const_iterator start = hosts_ports.begin(); start != hosts_ports.end(); start++)
+	for (ft::splited_string::const_iterator start = splited.begin(); start != splited.end(); start++)
 	{
 		host_port = ft::splitHeader(*start, ":");
 		port_backlog = ft::splitHeader(host_port.second, ":");
@@ -189,6 +149,51 @@ void	Meta::_prepareServer(ParsedEntity & p_server, Server::Settings & server)
 			
 		server.host_port.insert(std::make_pair(host_port, backlog));
 	}
+}
+
+void	Meta::_prepareCGI(std::string const & cgi, Server::Settings & server)
+{
+	ft::splited_string			cgi_params = ft::split(cgi);
+
+	if (cgi_params[0].empty())
+		return ;
+
+	std::vector<std::string *>	formats;
+
+	for (ft::splited_string::const_iterator start = cgi_params.begin(); start != cgi_params.end(); start++)
+	{
+		if (start->front() == '.')
+		{
+			formats.push_back(&server.cgi[*start]);
+			continue ;
+		}
+
+		if (formats.empty())
+			throw std::logic_error("cgi must have format binding: cgi .bla .alb .more path/to/cgi OR cgi .run binary");
+
+		for (std::vector<std::string *>::iterator format = formats.begin(); format != formats.end(); format++)
+			**format = *start;
+		
+		formats.clear();
+	}
+
+	if (!formats.empty())
+		throw std::logic_error("cgi must have format binding: cgi .bla .alb .more path/to/cgi OR cgi .run binary");
+}
+
+void	Meta::_prepareServer(ParsedEntity & p_server, Server::Settings & server)
+{
+	if (p_server.locations.empty())
+		throw std::logic_error("server must have at least 1 location");
+
+	ft::splited_string	server_names = ft::split(p_server.params["server_names"]);
+	
+	if (!server_names[0].empty())
+		server.server_names = std::set<std::string>(server_names.begin(), server_names.end());
+
+	this->_prepareHost(p_server.params["listen"], server);
+	this->_prepareCGI(p_server.params["cgi"], server);
+	p_server.params.erase("cgi");
 	
 	this->_prepareLocation(p_server, server.def_settings);
 	this->_checkLocations(server.def_settings, server.def_settings.locations);
@@ -198,7 +203,7 @@ void	Meta::_checkLocations(Location const & def_loc, Server::locations_type cons
 {
 	for (Server::locations_type::const_iterator it = locations.begin(); it != locations.end(); it++)
 	{
-		if (it->second.redir.second.empty() && it->second.root.empty() && def_loc.root.empty())
+		if (it->first.front() != '.' && it->second.redir.second.empty() && it->second.root.empty() && def_loc.root.empty())
 			throw std::logic_error("location '" + it->first + "': location must have root or redirection");
 		
 		if (!it->second.locations.empty())

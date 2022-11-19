@@ -20,7 +20,7 @@
 # endif
 
 # ifndef MAX_WRITE_BUF
-#  define MAX_WRITE_BUF KB(60)
+#  define MAX_WRITE_BUF KB(12)
 # endif
 
 class Response;
@@ -57,14 +57,16 @@ class CGI
 		void						_setResponseStatus(Response & response);
 		bool						_msgRecieved(Response & response);
 		void						_finishRecieving(Response & response);
+		void						_formPacket(Request & request, Request::bytes_type & packet);
 		void						_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet, Response & response);
+		void						_readPacket(Response & response);
 
 	public:
 		CGI(void);
 		~CGI();
 
 		void				handle(Request & request, Response & response);
-		void				setPath(std::map<std::string, std::string> & cgi, std::string const & method);
+		void				setPath(std::string const & cgi);
 		std::string const &	getPath(void);
 		std::string			translatePath(std::string const & mounted_path, std::string const & loc_path);
 };

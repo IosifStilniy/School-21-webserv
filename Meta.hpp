@@ -60,6 +60,8 @@ class Meta
 		void	_parseBlock(std::ifstream & conf, ParsedEntity & entity, size_t & line_counter);
 		void	_readConfLine(std::ifstream & file, std::queue<ParsedEntity> & parsed_servers, size_t & line_counter);
 		void	_prepareServer(ParsedEntity & p_server, Server::Settings & server);
+		void	_prepareHost(std::string const & listen, Server::Settings & server);
+		void	_prepareCGI(std::string const & cgi, Server::Settings & server);
 		void	_prepareLocation(ParsedEntity & p_location, Location & location);
 		void	_fillCGIInfo(ft::splited_string const & info, std::map<std::string, std::string> & cgi);
 		void	_checkLocations(Location const & def_loc, Server::locations_type const & locations);

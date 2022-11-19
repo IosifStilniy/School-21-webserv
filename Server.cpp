@@ -1,7 +1,5 @@
 #include "Server.hpp"
 
-size_t	serv_sended;
-
 Server::Server(void)
 	: maintainer(this->settings)
 {
@@ -99,12 +97,7 @@ void	Server::_sendPacket(Response::bytes_type & packet, Response & response, int
 		ret = 0;
 	}
 
-	if (response.chunks.empty())
-		response.chunks.push_back(Response::bytes_type());
-
-	Response::bytes_type &	chunk = response.chunks.front();
-
-	chunk.insert(chunk.end(), packet.begin() + ret, packet.end());
+	response.chunks.push_front(Response::bytes_type(packet.begin() + ret, packet.end()));
 }
 
 void	Server::_formPacket(Response & response, Response::bytes_type & packet)
@@ -114,7 +107,6 @@ void	Server::_formPacket(Response & response, Response::bytes_type & packet)
 		std::string		header = this->_formHeader(response.options, response.status);
 
 		std::cout << header << std::flush;
-		serv_sended = 0;
 		packet.insert(packet.end(), header.begin(), header.end());
 	}
 
@@ -131,8 +123,6 @@ void	Server::_formPacket(Response & response, Response::bytes_type & packet)
 		}
 
 		packet.insert(packet.end(), chunk.begin(), chunk.end());
-
-		serv_sended += chunk.size();
 
 		if (response.trans_mode == Response::tChunked)
 			packet.insert(packet.end(), Request::nl.begin(), Request::nl.end());
@@ -174,8 +164,6 @@ void	Server::_giveResponse(Maintainer::response_queue & resp_queue, int socket)
 		std::string	zero_chunk = "0" + Request::eof;
 
 		packet.insert(packet.end(), zero_chunk.begin(), zero_chunk.end());
-
-		std::cout << "sended in server: " << serv_sended << std::endl;
 		// std::cout << zero_chunk << std::flush;
 		response.trans_mode = Response::tStd;
 	}

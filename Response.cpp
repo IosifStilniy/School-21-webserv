@@ -134,9 +134,20 @@ void	Response::writeFile(Request & request)
 
 	Request::bytes_type &	chunk = request.chunks.front();
 
-	write(this->out, &chunk[0], chunk.size());
+	ssize_t	ret = write(this->out, &chunk[0], chunk.size());
+
+	if (ret < 0)
+		throw BadResponseException(500, *this, "write: " + std::string(strerror(errno)));
+
+	Request::bytes_type	remain;
+
+	if (static_cast<size_t>(ret) < chunk.size())
+		remain.assign(chunk.begin() + ret, chunk.end());
 
 	request.chunks.pop_front();
+
+	if (remain.size())
+		request.chunks.push_front(remain);
 }
 
 std::string const &	Response::chooseErrorPageSource(void)
@@ -277,15 +288,12 @@ void	Response::_getEndPointLocation(Location::locations_type & locations, std::s
 	for (Location::locations_type::iterator start = locations.begin(); start != locations.end(); start++)
 	{
 		if (start->first.front() == '/' || length > start->first.size()
+			|| (!start->second.methods.empty() && start->second.methods.find(method) == start->second.methods.end())
 			|| this->mounted_path.find(start->first) == std::string::npos
 			|| (this->mounted_path.find(start->first) + start->first.size() != this->mounted_path.size()
 				&& this->mounted_path[this->mounted_path.find(start->first) + start->first.size()] != '/'))
 			continue ;
 
-		if ((!start->second.methods.empty() && std::find(start->second.methods.begin(), start->second.methods.end(), method) == start->second.methods.end())
-			|| (start->second.cgi[method].empty() && start->second.cgi[""].empty()))
-			continue ;
-		
 		founded = &*start;
 		length = start->first.size();
 	}
@@ -447,7 +455,7 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 		return ;
 	}
 
-	this->cgi.setPath(this->path_location->second.cgi, request.getOnlyValue(METHOD));
+	this->cgi.setPath(this->settings->cgi[this->path_location->first]);
 
 	if (request.getOnlyValue("Connection") == "keep-alive")
 		this->con_status = cKeep_alive;
