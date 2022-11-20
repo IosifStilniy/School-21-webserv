@@ -12,8 +12,14 @@ std::vector<std::string>	Response::supported_protocols;
 std::vector<std::string>	Response::implemented_methods;
 std::map<int, std::string>	Response::statuses;
 
+std::string const	Response::_generated_error_page = std::string("<head><title>STATUS_CODE</title></head>\n")
+														+ "<body bgcolor=\"white\">\n"
+														+ "<center><h1>STATUS_CODE</h1></center>\n"
+														+ "<hr><center>webserv</center>\n"
+														+ "</body>";
+
 Response::Response(void)
-	: status(0), inited(false), con_status(cStd), trans_mode(tStd), settings(nullptr), path_location(nullptr), polls((int [2]){0, 0}, (int [2]){POLLIN, POLLOUT}, 2), in(polls.polls[0].fd), out(polls.polls[1].fd), buf_size(sizeof(*buf) * BUFSIZE), buf(new byte_type[buf_size])
+	: status(0), inited(false), content_length(0), con_status(cStd), trans_mode(tStd), settings(nullptr), path_location(nullptr), polls((int [2]){0, 0}, (int [2]){POLLIN, POLLOUT}, 2), in(polls.polls[0].fd), out(polls.polls[1].fd), buf_size(sizeof(*buf) * BUFSIZE), buf(new byte_type[buf_size])
 {
 	this->in = -1;
 	this->out = -1;
@@ -27,7 +33,7 @@ Response::Response(void)
 }
 
 Response::Response(const Response & src)
-	: status(0), inited(false), con_status(cStd), trans_mode(tStd), settings(nullptr), path_location(nullptr), polls((int [2]){0, 0}, (int [2]){POLLIN, POLLOUT}, 2), in(polls.polls[0].fd), out(polls.polls[1].fd), buf_size(sizeof(*buf) * BUFSIZE), buf(new byte_type[buf_size])
+	: status(0), inited(false), content_length(0), con_status(cStd), trans_mode(tStd), settings(nullptr), path_location(nullptr), polls((int [2]){0, 0}, (int [2]){POLLIN, POLLOUT}, 2), in(polls.polls[0].fd), out(polls.polls[1].fd), buf_size(sizeof(*buf) * BUFSIZE), buf(new byte_type[buf_size])
 {
 	static_cast<void>(src);
 	this->in = -1;
@@ -71,8 +77,16 @@ ssize_t	Response::readFile(std::string const & file_path)
 	if (length < 0)
 		throw BadResponseException(500, *this, "read: " + std::string(strerror(errno)));
 
+	this->content_length -= length;
+
+	if (this->content_length < 0)
+		throw BadResponseException(500, *this, this->mounted_path + ": wrong filesize: file must be smaller");
+
 	if (!length)
 	{
+		if (this->content_length > 0)
+			throw BadResponseException(500, *this, this->mounted_path + ": wrong filesize: file must be bigger");
+
 		::close(this->in);
 		this->in = -1;
 
@@ -138,6 +152,12 @@ void	Response::writeFile(Request & request)
 
 	if (ret < 0)
 		throw BadResponseException(500, *this, "write: " + std::string(strerror(errno)));
+	
+	if (request.tr_state == Request::tStd)
+		this->content_length -= ret;
+
+	if (this->content_length < 0)
+		throw BadResponseException(500, *this, "bad content size");
 
 	Request::bytes_type	remain;
 
@@ -173,7 +193,7 @@ void	Response::badResponse(int status, std::string error_page)
 
 	::close(this->in);
 	this->in = -1;
-	
+
 	this->chunks.clear();
 
 	if (error_page.empty() && this->settings)
@@ -182,9 +202,19 @@ void	Response::badResponse(int status, std::string error_page)
 	if (error_page.empty())
 		error_page = "def_err.html";
 
-	this->readFile(error_page);
-	while (this->polls.isGood(this->in))
+	this->content_length = ft::getFileSize(error_page);
+
+	try
+	{
 		this->readFile(error_page);
+		while (this->polls.isGood(this->in))
+			this->readFile(error_page);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << '\n';
+		this->chunks.push_back(bytes_type(Response::_generated_error_page.begin(), Response::_generated_error_page.end()));
+	}
 
 	for (chunks_type::const_iterator chunk = ++this->chunks.begin(); chunk != this->chunks.end(); chunk++)
 		this->chunks.front().insert(this->chunks.front().end(), chunk->begin(), chunk->end());
@@ -196,7 +226,7 @@ void	Response::badResponse(int status, std::string error_page)
 
 	this->options["Server"] = "webserv/0.1";
 	this->options["Connection"] = "close";
-	this->options["Content-Length"] = ft::num_to_string(this->chunks.front().size());
+	this->options["Content-Length"] = ft::num_to_string(this->getContentLength());
 	this->options["Content-Type"] = "text/html";
 }
 
@@ -353,9 +383,7 @@ void	Response::_getLocation(Location::locations_type & locations, Request & requ
 	}
 
 	this->path_location = founded;
-
 	this->_getEndPointLocation(locations, request.getOnlyValue(METHOD));
-
 	this->_checkLocation(request);
 }
 
@@ -461,4 +489,10 @@ void	Response::init(Request & request, std::vector<ServerSettings> & settings_co
 		this->con_status = cKeep_alive;
 	else if (request.getOnlyValue("Connection") == "close")
 		this->con_status = cClose;
+}
+
+bool	Response::empty(bool release_req)
+{
+	return ((this->status && this->trans_mode == tStd && !this->content_length && (release_req || this->chunks.empty()))
+			|| (this->trans_mode == tChunked && !this->chunks.empty() && this->chunks.front().empty()));
 }

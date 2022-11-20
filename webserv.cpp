@@ -12,7 +12,15 @@ int	main(int argc, char **argv)
 
 	std::ifstream	conf;
 
-	ft::openFile(conf, argv[1]);
+	try
+	{
+		ft::openFile(conf, argv[1]);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "error: " << e.what() << std::endl;
+		return (1);
+	}
 
 	std::string	path = std::string(argv[0], strrchr(argv[0], '/'));
 
@@ -21,6 +29,7 @@ int	main(int argc, char **argv)
 		std::cerr << "chdir: " << path + ": " + strerror(errno) << std::endl;
 		return (1);
 	}
+
 
 	Meta	meta;
 

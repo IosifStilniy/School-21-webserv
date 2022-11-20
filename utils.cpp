@@ -249,4 +249,13 @@ namespace ft
 	{
 		return (quote + string + quote);
 	}
+
+	ssize_t	getFileSize(std::string const & filename)
+	{
+		std::ifstream	file(filename, std::ios_base::ate | std::ios_base::binary);
+		ssize_t			len = file.tellg();
+
+		file.close();
+		return (len);
+	}
 };

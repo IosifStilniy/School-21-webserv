@@ -171,7 +171,10 @@ void	CGI::_setup(Request & request, Response & response, Request::bytes_type & p
 	this->polls.append(this->out, POLLOUT);
 	this->polls.append(this->in, POLLIN);
 
-	packet.insert(packet.end(), request.raw_header.begin(), request.raw_header.end());
+	time(&this->last_modified);
+
+	// packet.insert(packet.end(), request.raw_header.begin(), request.raw_header.end());
+	static_cast<void>(packet);
 }
 
 void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
@@ -187,9 +190,6 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 	if (repited_req_eof == chunk.end())
 		return ;
 	
-	// std::cout << "raw cgi header: " << repited_req_eof - chunk.begin() + Request::eof.size() << std::endl;
-	// std::cout << std::string(chunk.begin(), repited_req_eof) << std::endl;
-
 	ft::splited_string	splited = ft::split(std::string(chunk.begin(), eof), "\n");
 	ft::key_value_type	field_value;
 
@@ -205,6 +205,8 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 
 	if (repited_req_eof <= chunk.end())
 		remain.assign(repited_req_eof, chunk.end());
+	
+	response.content_length = strtoul(response.options["Content-Length"].c_str(), NULL, 10) - remain.size();
 
 	response.chunks.pop_front();
 
@@ -283,11 +285,16 @@ bool	CGI::_msgRecieved(Response & response)
 		&& response.getContentLength() < strtoul(response.options["Content-Length"].c_str(), NULL, 10))
 		return (false);
 	
-	if (this->stat_loc >= 0
-		|| (!response.options["Content-Length"].empty()
+	if ((response.options.find("Content-Length") != response.options.end() && !response.options["Content-Length"].empty()
 			&& response.getContentLength() >= strtoul(response.options["Content-Length"].c_str(), NULL, 10)))
 		return (true);
 	
+	if (this->stat_loc > 0)
+		throw CGIException(response, "exited: " + ft::num_to_string(this->stat_loc));
+	
+	if (!this->stat_loc)
+		return (true);
+
 	Response::bytes_type	tail;
 
 	tail.reserve(Request::eof.size());
@@ -370,6 +377,17 @@ void	CGI::_readPacket(Response & response)
 	if (ret < 0)
 		throw CGIException(response, "read: " + std::string(strerror(errno)));
 
+	if (!ret)
+		return ;
+
+	time(&this->last_modified);
+
+	if (this->_header_extracted && response.trans_mode == Response::tStd)
+		response.content_length -= ret;
+	
+	if (this->_header_extracted && response.trans_mode == Response::tStd && response.content_length < 0)
+		throw CGIException(response, "bad content length");
+
 	if (response.chunks.empty())
 		response.chunks.push_back(Response::bytes_type());
 
@@ -397,7 +415,8 @@ void	CGI::handle(Request & request, Response & response)
 	if (request.getContentLength() + packet.size() > MAX_WRITE_BUF || request.tr_state == Request::tStd)
 		this->_formPacket(request, packet);
 
-	waitpid(this->pid, &this->stat_loc, WNOHANG | WUNTRACED);
+	if (waitpid(this->pid, &this->stat_loc, WNOHANG | WUNTRACED) < 0)
+		throw CGIException(response, "waitpid: " + std::string(strerror(errno)));
 
 	this->polls.poll(0);
 

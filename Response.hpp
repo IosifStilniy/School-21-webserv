@@ -37,6 +37,8 @@ class Response
 		int				status;
 		bool			inited;
 
+		ssize_t			content_length;
+
 		connection		con_status;
 		transfering		trans_mode;
 
@@ -70,6 +72,8 @@ class Response
 		void				_checkSettings(Request & request);
 		void				_checkLocation(Request & request);
 
+		static std::string const	_generated_error_page;
+
 
 	public:
 		void				init(Request & request, std::vector<ServerSettings> & settings_collection);
@@ -84,6 +88,7 @@ class Response
 		void				checkGetPath(void);
 		void				checkGetPath(std::string & path);
 		void				checkPutPath(void);
+		bool				empty(bool release_req = false);
 };
 
 #endif

@@ -31,26 +31,47 @@ Maintainer::~Maintainer()
 
 void	Maintainer::_head(Request & request, Response & response)
 {
-	this->_get(request, response);
+	// this->_get(request, response);
+	static_cast<void>(request);
 
-	if (!response.status)
+	if (response.status)
 		return ;
-
-	response.trans_mode = Response::tStd;
-	response.chunks.clear();
-}
-
-void	Maintainer::_get(Request & request, Response & response)
-{
+	
 	if (!response.inited)
 	{
 		response.inited = true;
 		response.checkGetPath();
 	}
 
-	ssize_t	length;
+	if (response.trans_mode != Response::tChunked && !response.content_length)
+	{
+		response.content_length = ft::getFileSize(response.mounted_path);
+		response.options["Content-Length"] = ft::num_to_string(response.content_length);
+	}
 
-	length = response.readFile();
+	// response.trans_mode = Response::tStd;
+	// response.chunks.clear();
+
+	response.status = 200;
+}
+
+void	Maintainer::_get(Request & request, Response & response)
+{
+	static_cast<void>(request);
+
+	if (!response.inited)
+	{
+		response.inited = true;
+		response.checkGetPath();
+	}
+
+	if (response.trans_mode != Response::tChunked && !response.content_length)
+	{
+		response.content_length = ft::getFileSize(response.mounted_path);
+		response.options["Content-Length"] = ft::num_to_string(response.content_length);
+	}
+
+	ssize_t	length = response.readFile();
 	
 	if (response.trans_mode == Response::tChunked && static_cast<size_t>(length) < response.buf_size)
 	{
@@ -64,20 +85,19 @@ void	Maintainer::_get(Request & request, Response & response)
 		return ;
 		// throw IncompleteResponseException("response proceeded");
 
-	if (response.polls.isGood(response.in))
-	{
-		if (!request.options["TE"].empty() && request.options["TE"].find("chunked") == request.options["TE"].end())
-			return ;
+	// if (response.polls.isGood(response.in))
+	// {
+	// 	if (!request.options["TE"].empty() && request.options["TE"].find("chunked") == request.options["TE"].end())
+	// 		return ;
 
-		if (!response.options["Transfer-Encoding"].empty())
-			response.options["Transfer-Encoding"].append(", ");
-		response.options["Transfer-Encoding"].append("chunked");
-		response.trans_mode = Response::tChunked;
-		response.status = 200;
-		return ;
-	}
+	// 	if (!response.options["Transfer-Encoding"].empty())
+	// 		response.options["Transfer-Encoding"].append(", ");
+	// 	response.options["Transfer-Encoding"].append("chunked");
+	// 	response.trans_mode = Response::tChunked;
+	// 	response.status = 200;
+	// 	return ;
+	// }
 
-	response.options["Content-Length"] = ft::num_to_string(response.getContentLength());
 	response.status = 200;
 }
 
@@ -87,10 +107,15 @@ void	Maintainer::_put(Request & request, Response & response)
 	{
 		response.inited = true;
 		response.checkPutPath();
+		response.content_length = strtoul(request.getOnlyValue("Content-Length").c_str(), NULL, 10);
 	}
 
 	if (request.tr_state == Request::tChunked && (request.chunks.empty() || request.chunks.front().empty()))
 		return ;
+
+	if (request.options["Transfer-Encoding"].find("chunked") != request.options["Transfer-Encoding"].end()
+		&& request.tr_state == Request::tStd && !response.content_length)
+		response.content_length = request.getContentLength();
 
 	response.writeFile(request);
 
@@ -144,7 +169,7 @@ void	Maintainer::_dispatchRequest(Request & request, Response & response)
 {
 	if (!response.inited)
 		response.init(request, this->_settings);
-	
+
 	if (!response.cgi.getPath().empty())
 	{
 		response.inited = true;
@@ -199,9 +224,7 @@ void	Maintainer::proceedRequests(RequestCollector & requests)
 			std::cerr << e.what() << std::endl;
 		}
 
-		if (!responses.back().status
-			|| (responses.back().trans_mode == Response::tChunked
-				&& (responses.back().chunks.empty() || !responses.back().chunks.front().empty())))
+		if (!responses.back().empty(true) || !req_queue.front().isFullyReceived())
 			continue ;
 
 		responses.push(Response());

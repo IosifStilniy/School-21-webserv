@@ -1,10 +1,10 @@
 #'server' scope only
 listen
 server_names
+cgi						# example: cgi .run .exe .cgi binary OR/AND cgi .php path/to/php/executor
 
 #'location' scope only
 redirect
-cgi						# example: cgi @path_to_cgi [method1] [method2] ... [methodN]
 
 #any inner scope
 root

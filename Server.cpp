@@ -165,15 +165,17 @@ void	Server::_giveResponse(Maintainer::response_queue & resp_queue, int socket)
 
 		packet.insert(packet.end(), zero_chunk.begin(), zero_chunk.end());
 		// std::cout << zero_chunk << std::flush;
-		response.trans_mode = Response::tStd;
+		// response.trans_mode = Response::tStd;
 	}
-
+	
 	this->_sendPacket(packet, response, socket);
 
 	if (response.con_status == Response::cClose)
 		close(socket);
 
-	resp_queue.pop();
+
+	if (response.empty())
+		resp_queue.pop();
 }
 
 void	Server::proceed(int timeout)
