@@ -78,7 +78,7 @@ class Response
 	public:
 		void				init(Request & request, std::vector<ServerSettings> & settings_collection);
 		ssize_t				readFile(void);
-		ssize_t				readFile(std::string const & filepath);
+		ssize_t				readFile(std::string const & filepath, bool err_mode = false);
 		void				writeFile(Request & request);
 		void				badResponse(int status, std::string error_page = "");
 		size_t				getContentLength(void);

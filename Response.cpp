@@ -52,16 +52,26 @@ ssize_t	Response::readFile(void)
 	return (this->readFile(this->mounted_path));
 }
 
-ssize_t	Response::readFile(std::string const & file_path)
+ssize_t	Response::readFile(std::string const & file_path, bool err_mode)
 {
 	if (this->in == -1)
 		this->in = open(file_path.c_str(), O_RDONLY | O_NONBLOCK);
 
 	if (this->in == -1)
+	{
+		if (err_mode)
+			throw std::runtime_error("open: " + std::string(strerror(errno)));
+
 		throw PathException(404, *this, "not found");
+	}
 
 	if (this->polls.poll(0) < 0)
+	{
+		if (err_mode)
+			throw std::runtime_error("poll: " + std::string(strerror(errno)));
+
 		throw BadResponseException(500, *this, "poll: " + std::string(strerror(errno)));
+	}
 
 	if (!this->polls.isGood(this->in))
 	{
@@ -75,16 +85,21 @@ ssize_t	Response::readFile(std::string const & file_path)
 	ssize_t	length = read(this->in, this->buf, this->buf_size);
 
 	if (length < 0)
+	{
+		if (err_mode)
+			throw std::runtime_error("read: " + std::string(strerror(errno)));
+
 		throw BadResponseException(500, *this, "read: " + std::string(strerror(errno)));
+	}
 
 	this->content_length -= length;
 
-	if (this->content_length < 0)
+	if (this->content_length < 0 && !err_mode)
 		throw BadResponseException(500, *this, this->mounted_path + ": wrong filesize: file must be smaller");
 
 	if (!length)
 	{
-		if (this->content_length > 0)
+		if (this->content_length > 0 && !err_mode)
 			throw BadResponseException(500, *this, this->mounted_path + ": wrong filesize: file must be bigger");
 
 		::close(this->in);
@@ -206,9 +221,9 @@ void	Response::badResponse(int status, std::string error_page)
 
 	try
 	{
-		this->readFile(error_page);
+		this->readFile(error_page, true);
 		while (this->polls.isGood(this->in))
-			this->readFile(error_page);
+			this->readFile(error_page, true);
 	}
 	catch(const std::exception& e)
 	{

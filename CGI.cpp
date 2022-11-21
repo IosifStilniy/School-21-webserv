@@ -422,10 +422,9 @@ void	CGI::_printFinishedCGIInfo(Request & request)
 {
 	std::cerr << "--------------------------------------------------" << std::endl;
 	std::cerr << "stat_loc: " << this->stat_loc << std::endl;
-	std::cerr << "eated: " << this->eated << std::endl;
-	std::cerr << "eated + recieved: " << this->eated + request.getContentLength() << std::endl;
-	std::cerr << "readed: " << this->readed << std::endl;
-	std::cerr << std::endl;
+	std::cerr << "writed to cgi: " << this->eated << std::endl;
+	std::cerr << "writed to cgi + not-writed content: " << this->eated + request.getContentLength() << std::endl;
+	std::cerr << "readed from cgi: " << this->readed << std::endl;
 	std::cerr << "--------------------------------------------------" << std::endl;
 }
 
