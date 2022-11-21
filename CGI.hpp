@@ -60,6 +60,7 @@ class CGI
 		void						_formPacket(Request & request, Request::bytes_type & packet);
 		void						_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet, Response & response);
 		void						_readPacket(Response & response);
+		void						_clear(void);
 
 	public:
 		CGI(void);

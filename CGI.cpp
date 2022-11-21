@@ -3,6 +3,7 @@
 #include "exceptions.hpp"
 
 size_t	eated;
+size_t	readed;
 
 CGI::CGI(void)
 	: _header_extracted(false), in(-1), out(-1), pid(0), stat_loc(-1), buf(new ByteTypes::byte_type[BUFSIZE]), buf_size(BUFSIZE)
@@ -13,11 +14,7 @@ CGI::~CGI()
 {
 	delete [] this->buf;
 
-	close(this->in);
-	close(this->out);
-
-	if (this->stat_loc < 0 && this->pid > 0)
-		kill(this->pid, SIGINT);
+	this->_clear();
 }
 
 void	CGI::setPath(std::string const & cgi)
@@ -141,6 +138,7 @@ void	CGI::_runChild(int server_to_cgi[2], int cgi_to_server[2])
 void	CGI::_setup(Request & request, Response & response, Request::bytes_type & packet)
 {
 	eated = 0;
+	readed = 0;
 
 	this->_setEnv(request, response.mounted_path, response.path_location->first);
 
@@ -184,12 +182,6 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 	if (eof == chunk.end())
 		return ;
 	
-	// Response::bytes_type::iterator	repited_req_eof = std::search(eof + 4, chunk.end(), Request::eof.begin(), Request::eof.end());
-	Response::bytes_type::iterator	repited_req_eof = eof;
-
-	if (repited_req_eof == chunk.end())
-		return ;
-	
 	ft::splited_string	splited = ft::split(std::string(chunk.begin(), eof), "\n");
 	ft::key_value_type	field_value;
 
@@ -199,12 +191,12 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 		response.options[ft::trim(field_value.first)] = ft::trim(field_value.second);
 	}
 
-	repited_req_eof += Request::eof.size();
+	eof += Request::eof.size();
 
 	Response::bytes_type	remain;
 
-	if (repited_req_eof <= chunk.end())
-		remain.assign(repited_req_eof, chunk.end());
+	if (eof <= chunk.end())
+		remain.assign(eof, chunk.end());
 	
 	response.content_length = strtoul(response.options["Content-Length"].c_str(), NULL, 10) - remain.size();
 
@@ -213,7 +205,11 @@ void	CGI::_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk)
 	if (!remain.empty())
 		response.chunks.push_front(remain);
 
-	if ((response.options["Transfer-Encoding"].empty() || response.options["Transfer-Encoding"].find("chunked") != std::string::npos)
+	waitpid(this->pid, &this->stat_loc, WNOHANG | WUNTRACED);
+
+	if (this->stat_loc > 0)
+		throw CGIException(response, "exited: " + ft::num_to_string(this->stat_loc));
+	else if ((response.options["Transfer-Encoding"].empty() || response.options["Transfer-Encoding"].find("chunked") != std::string::npos)
 		&& response.options["Content-Length"].empty() && !remain.empty())
 	{
 		if (response.options["Transfer-Encoding"].find("chunked") == std::string::npos)
@@ -233,11 +229,6 @@ void	CGI::_setResponseStatus(Response & response)
 {
 	response.status = strtoul(response.options["Status"].c_str(), NULL, 10);
 	response.options["Status"].clear();
-
-	// if (response.options["Transfer-Encoding"].find("chunked") != std::string::npos || response.options["Content-Length"].empty())
-	// 	response.trans_mode = Response::tChunked;
-	// else if (response.options["Content-Length"].empty() && !response.chunks.empty() && !response.chunks.front().empty())
-	// 	response.options["Content-Length"] = ft::num_to_string(response.getContentLength());
 
 	if (response.status)
 		return ;
@@ -263,7 +254,6 @@ void	CGI::_setResponseStatus(Response & response)
 	}
 
 	response.status = 200;
-	// throw CGIException(response, "undefined status from CGI");
 }
 
 static void	fillTail(Response::bytes_type & tail, Response::chunks_type const & chunks)
@@ -289,12 +279,6 @@ bool	CGI::_msgRecieved(Response & response)
 			&& response.getContentLength() >= strtoul(response.options["Content-Length"].c_str(), NULL, 10)))
 		return (true);
 	
-	if (this->stat_loc > 0)
-		throw CGIException(response, "exited: " + ft::num_to_string(this->stat_loc));
-	
-	if (!this->stat_loc)
-		return (true);
-
 	Response::bytes_type	tail;
 
 	tail.reserve(Request::eof.size());
@@ -306,22 +290,34 @@ bool	CGI::_msgRecieved(Response & response)
 	return (std::equal(tail.begin(), tail.end(), Request::eof.begin()));
 }
 
-void	CGI::_finishRecieving(Response & response)
+void	CGI::_clear(void)
 {
-	if (!response.status)
-		this->_setResponseStatus(response);
-
 	close(this->in);
 	close(this->out);
 
 	this->in = -1;
 	this->out = -1;
 
-	if (this->stat_loc < 0)
+	waitpid(this->pid, &this->stat_loc, WNOHANG | WUNTRACED);
+
+	if (this->stat_loc < 0 && this->pid > 0)
 		kill(this->pid, SIGINT);
+	
+	waitpid(this->pid, &this->stat_loc, WNOHANG | WUNTRACED);
 	
 	this->pid = -1;
 	this->stat_loc = -1;
+}
+
+void	CGI::_finishRecieving(Response & response)
+{
+	if (!response.status)
+		this->_setResponseStatus(response);
+
+	this->_clear();
+
+	if (response.trans_mode == Response::tChunked && !response.chunks.back().empty())
+		response.chunks.push_back(Response::bytes_type());
 }
 
 void	CGI::_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet, Response & response)
@@ -376,6 +372,8 @@ void	CGI::_readPacket(Response & response)
 
 	if (ret < 0)
 		throw CGIException(response, "read: " + std::string(strerror(errno)));
+	
+	readed += ret;
 
 	if (!ret)
 		return ;
@@ -401,7 +399,7 @@ void	CGI::_readPacket(Response & response)
 
 void	CGI::handle(Request & request, Response & response)
 {
-	if (response.status && response.trans_mode != Response::tChunked)
+	if (this->pid < 0 || (response.status && response.trans_mode != Response::tChunked))
 		return ;
 
 	Request::bytes_type	packet;
@@ -429,7 +427,7 @@ void	CGI::handle(Request & request, Response & response)
 
 	if (!this->polls.isReady(this->in))
 	{
-		if (now - this->last_modified > CGI_TIMEOUT /* || !this->stat_loc */)
+		if (now - this->last_modified > CGI_TIMEOUT)
 		{
 			if (response.trans_mode == Response::tChunked)
 				response.chunks.push_back(Response::bytes_type());
@@ -437,13 +435,17 @@ void	CGI::handle(Request & request, Response & response)
 			std::cout << "stat_loc: " << this->stat_loc << std::endl;
 			std::cout << "eated: " << eated << std::endl;
 			std::cout << "eated + recieved: " << eated + request.getContentLength() << std::endl;
+			std::cout << "readed: " << readed << std::endl;
 
 			this->_finishRecieving(response);
 		}
 
 		if (this->stat_loc > 0)
 			throw CGIException(response, "exited: " + ft::num_to_string(this->stat_loc));
-
+		
+		if (!this->stat_loc)
+			this->_finishRecieving(response);
+		
 		return ;
 	}
 	
