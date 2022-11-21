@@ -118,7 +118,6 @@ void	Server::_formPacket(Response & response, Response::bytes_type & packet)
 		{
 			std::string	num = ft::num_to_string(chunk.size(), 16) + Request::nl;
 
-			// std::cout << num << std::flush;
 			packet.insert(packet.end(), num.begin(), num.end());
 		}
 
@@ -164,15 +163,12 @@ void	Server::_giveResponse(Maintainer::response_queue & resp_queue, int socket)
 		std::string	zero_chunk = "0" + Request::eof;
 
 		packet.insert(packet.end(), zero_chunk.begin(), zero_chunk.end());
-		// std::cout << zero_chunk << std::flush;
-		// response.trans_mode = Response::tStd;
 	}
 	
 	this->_sendPacket(packet, response, socket);
 
 	if (response.con_status == Response::cClose)
 		close(socket);
-
 
 	if (response.empty())
 		resp_queue.pop();
@@ -195,17 +191,12 @@ void	Server::proceed(int timeout)
 
 	while (socket)
 	{
-		// std::cout << "socket " << socket << " " << this->polls[socket]->revents << std::endl;
-
 		if ((this->polls[socket]->revents & POLLOUT) == POLLOUT)
 			this->_giveResponse(this->maintainer[socket], socket);
 
 		if ((this->polls[socket]->revents & POLLIN) == POLLIN)
 			this->req_coll.collect(socket);
 		
-		// if (!this->req_coll[socket].empty())
-		// 	this->req_coll[socket].front().printOptions(this->req_coll[socket].front().options);
-
 		socket = this->polls.getNextSocket();
 	}
 }

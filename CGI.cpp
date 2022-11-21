@@ -105,7 +105,7 @@ void	CGI::_setEnv(Request & request, std::string const & mounted_path, std::stri
 	this->_env["SERVER_SOFTWARE"] = "webserv/0.1";
 	this->_env["CONTENT_TYPE"] = request.formOptionLine("Content-Type");
 	this->_env["CONTENT_LENGTH"] = ft::num_to_string(request.getContentLength());
-	this->_env["HTTP_COOKIE"];
+	this->_env["HTTP_COOKIE"] = request.formOptionLine("Cookie");
 }
 
 void	CGI::_runChild(int server_to_cgi[2], int cgi_to_server[2])

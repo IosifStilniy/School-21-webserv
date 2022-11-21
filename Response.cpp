@@ -172,7 +172,7 @@ void	Response::writeFile(Request & request)
 
 std::string const &	Response::chooseErrorPageSource(void)
 {
-	if (this->path_location && this->path_location->second.e_is_dir.empty())
+	if (this->path_location && !this->path_location->second.e_is_dir.empty())
 		return (this->path_location->second.e_is_dir);
 	return (this->settings->def_settings.e_is_dir);
 }
