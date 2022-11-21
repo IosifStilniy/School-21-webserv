@@ -1,0 +1,64 @@
+server {
+	listen 127.0.0.1:1024
+	listen 127.0.0.1:1026
+
+	root			www/YoupiBanane/
+	indexes			youpi.bad_extension
+
+	cgi				.bla	test/cgi_tester
+	cgi				.run	binary
+
+	location / {
+		allow_methods	GET
+	}
+
+	location /put_test/ {
+		allow_methods	PUT
+		root			www/post/
+	}
+
+	location .bla {
+		allow_methods	POST
+	}
+
+	location /post_body {
+		allow_methods		POST
+		client_body_size	100
+	}
+
+	location /directory {
+		redirect			/directory/
+	}
+
+	location /directory/ {
+		allow_methods		GET
+		root				www/YoupiBanane/
+	}
+}
+
+server {
+	server_names		popa pisya
+	listen				127.0.0.1:1025:12
+	listen				127.0.0.1:1027:12
+
+	cgi				.run	binary
+
+	location / {
+		root			www/root/
+
+		indexes			index.html
+		
+		allow_methods	get
+	}
+
+	location .run {
+	}
+
+	location /post/ {
+		root			www/post/
+	}
+
+	location /content/ {
+		root			www/post/
+	}
+}

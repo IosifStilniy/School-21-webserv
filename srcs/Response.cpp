@@ -215,7 +215,7 @@ void	Response::badResponse(int status, std::string error_page)
 		error_page = this->chooseErrorPageSource(status);
 
 	if (error_page.empty())
-		error_page = "def_err.html";
+		error_page = "www/def_err.html";
 
 	this->content_length = ft::getFileSize(error_page);
 
@@ -235,10 +235,7 @@ void	Response::badResponse(int status, std::string error_page)
 		this->chunks.front().insert(this->chunks.front().end(), chunk->begin(), chunk->end());
 	
 	this->chunks.erase(++this->chunks.begin(), this->chunks.end());
-
-	if (error_page == "def_err.html")
-		this->chunks.front() = ft::replaceBytes(this->chunks.front(), std::string("STATUS_CODE"), ft::num_to_string(status) + " " + Response::statuses[status]);
-
+	this->chunks.front() = ft::replaceBytes(this->chunks.front(), std::string("STATUS_CODE"), ft::num_to_string(status) + " " + Response::statuses[status]);
 	this->options["Server"] = "webserv/0.1";
 	this->options["Connection"] = "close";
 	this->options["Content-Length"] = ft::num_to_string(this->getContentLength());

@@ -1,17 +1,19 @@
-SRCS		=	Polls.cpp				\
-				Server.cpp				\
-				Meta.cpp				\
-				Request.cpp				\
-				RequestCollector.cpp	\
-				Response.cpp			\
-				Maintainer.cpp			\
-				CGI.cpp					\
-				utils.cpp				\
-				webserv.cpp
+SRCS		=	srcs/Polls.cpp				\
+				srcs/Server.cpp				\
+				srcs/Meta.cpp				\
+				srcs/Request.cpp			\
+				srcs/RequestCollector.cpp	\
+				srcs/Response.cpp			\
+				srcs/Maintainer.cpp			\
+				srcs/CGI.cpp				\
+				srcs/utils/utils.cpp		\
+				srcs/webserv.cpp
 
 OBJS		=	$(SRCS:.cpp=.o)
 
-HEAD		=	./
+HEAD		=	srcs/
+
+UT_HEAD		=	srcs/utils/
 
 NAME		=	webserv
 
@@ -21,8 +23,8 @@ FLAGS		=	-Wall -Werror -Wextra -std=c++98
 
 RM			=	rm -f
 
-%.o:	%.cpp $(wildcard $(HEAD)/*.hpp)
-		$(GCC) $(FLAGS) -c $< -o $@ 
+%.o:	%.cpp $(wildcard $(HEAD)/*.hpp) $(wildcard $(UT_HEAD)/*.hpp)
+		$(GCC) $(FLAGS) -c -I$(HEAD) -I$(UT_HEAD) $< -o $@ 
 
 $(NAME):	$(HEADS) $(OBJS)
 			$(GCC) $(FLAGS) $(OBJS) -o $(NAME)
