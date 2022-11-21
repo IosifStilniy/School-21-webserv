@@ -31,6 +31,8 @@ class CGI
 		std::string							_path;
 		std::map<std::string, std::string>	_env;
 
+		static ft::splited_string	standart_headers;
+
 		bool	_header_extracted;
 
 		int	in;
@@ -40,6 +42,9 @@ class CGI
 		int		stat_loc;
 
 		Polls	polls;
+
+		size_t	eated;
+		size_t	readed;
 
 		ByteTypes::byte_type *	buf;
 		size_t					buf_size;
@@ -56,11 +61,12 @@ class CGI
 		void						_getHeaderFromCGI(Response & response, ByteTypes::bytes_type & chunk);
 		void						_setResponseStatus(Response & response);
 		bool						_msgRecieved(Response & response);
-		void						_finishRecieving(Response & response);
+		void						_finishRecieving(Request & request, Response & response);
 		void						_formPacket(Request & request, Request::bytes_type & packet);
 		void						_writePacket(Request::chunks_type & chunks, Request::bytes_type & packet, Response & response);
 		void						_readPacket(Response & response);
 		void						_clear(void);
+		void						_printFinishedCGIInfo(Request & request);
 
 	public:
 		CGI(void);

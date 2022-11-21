@@ -2,12 +2,23 @@
 #include "Response.hpp"
 #include "exceptions.hpp"
 
-size_t	eated;
-size_t	readed;
+static std::string	lowerizeLine(std::string const & line)
+{
+	return (ft::toLower(line));
+}
+
+ft::splited_string	CGI::standart_headers;
 
 CGI::CGI(void)
 	: _header_extracted(false), in(-1), out(-1), pid(0), stat_loc(-1), buf(new ByteTypes::byte_type[BUFSIZE]), buf_size(BUFSIZE)
 {
+	if (!CGI::standart_headers.empty())
+	{
+		CGI::standart_headers = ft::containerazeConfFile<ft::splited_string>("info/cgi_standart_headers", &lowerizeLine);
+		CGI::standart_headers.push_back(CONTENT_PATH);
+		CGI::standart_headers.push_back(HTTP_V);
+		CGI::standart_headers.push_back(METHOD);
+	}
 }
 
 CGI::~CGI()
@@ -106,6 +117,14 @@ void	CGI::_setEnv(Request & request, std::string const & mounted_path, std::stri
 	this->_env["CONTENT_TYPE"] = request.formOptionLine("Content-Type");
 	this->_env["CONTENT_LENGTH"] = ft::num_to_string(request.getContentLength());
 	this->_env["HTTP_COOKIE"] = request.formOptionLine("Cookie");
+
+	for (Request::header_fields::const_iterator field = request.options.begin(); field != request.options.end(); field++)
+	{
+		if (std::find(CGI::standart_headers.begin(), CGI::standart_headers.end(), ft::toLower(field->first)) != CGI::standart_headers.end())
+			continue ;
+		
+		this->_env[ft::replaceBytes(ft::toUpper(field->first), std::string("-"), std::string("_"))] = request.formOptionLine(field->first);
+	}
 }
 
 void	CGI::_runChild(int server_to_cgi[2], int cgi_to_server[2])
@@ -137,8 +156,8 @@ void	CGI::_runChild(int server_to_cgi[2], int cgi_to_server[2])
 
 void	CGI::_setup(Request & request, Response & response, Request::bytes_type & packet)
 {
-	eated = 0;
-	readed = 0;
+	this->eated = 0;
+	this->readed = 0;
 
 	this->_setEnv(request, response.mounted_path, response.path_location->first);
 
@@ -309,8 +328,10 @@ void	CGI::_clear(void)
 	this->stat_loc = -1;
 }
 
-void	CGI::_finishRecieving(Response & response)
+void	CGI::_finishRecieving(Request & request, Response & response)
 {
+	this->_printFinishedCGIInfo(request);
+
 	if (!response.status)
 		this->_setResponseStatus(response);
 
@@ -332,7 +353,7 @@ void	CGI::_writePacket(Request::chunks_type & chunks, Request::bytes_type & pack
 	if (ret < 0 || static_cast<size_t>(ret) > packet.size())
 		throw BadResponseException(500, response, "write: " + std::string(strerror(errno)));
 
-	eated += ret;
+	this->eated += ret;
 
 	if (static_cast<size_t>(ret) == packet.size())
 		return ;
@@ -373,7 +394,7 @@ void	CGI::_readPacket(Response & response)
 	if (ret < 0)
 		throw CGIException(response, "read: " + std::string(strerror(errno)));
 	
-	readed += ret;
+	this->readed += ret;
 
 	if (!ret)
 		return ;
@@ -395,6 +416,17 @@ void	CGI::_readPacket(Response & response)
 
 	if (!this->_header_extracted)
 		this->_getHeaderFromCGI(response, chunk);
+}
+
+void	CGI::_printFinishedCGIInfo(Request & request)
+{
+	std::cerr << "--------------------------------------------------" << std::endl;
+	std::cerr << "stat_loc: " << this->stat_loc << std::endl;
+	std::cerr << "eated: " << this->eated << std::endl;
+	std::cerr << "eated + recieved: " << this->eated + request.getContentLength() << std::endl;
+	std::cerr << "readed: " << this->readed << std::endl;
+	std::cerr << std::endl;
+	std::cerr << "--------------------------------------------------" << std::endl;
 }
 
 void	CGI::handle(Request & request, Response & response)
@@ -432,19 +464,14 @@ void	CGI::handle(Request & request, Response & response)
 			if (response.trans_mode == Response::tChunked)
 				response.chunks.push_back(Response::bytes_type());
 
-			std::cout << "stat_loc: " << this->stat_loc << std::endl;
-			std::cout << "eated: " << eated << std::endl;
-			std::cout << "eated + recieved: " << eated + request.getContentLength() << std::endl;
-			std::cout << "readed: " << readed << std::endl;
-
-			this->_finishRecieving(response);
+			this->_finishRecieving(request, response);
 		}
 
 		if (this->stat_loc > 0)
 			throw CGIException(response, "exited: " + ft::num_to_string(this->stat_loc));
 		
 		if (!this->stat_loc)
-			this->_finishRecieving(response);
+			this->_finishRecieving(request, response);
 		
 		return ;
 	}
@@ -460,7 +487,7 @@ void	CGI::handle(Request & request, Response & response)
 		this->_setResponseStatus(response);
 
 	if (this->_msgRecieved(response))
-		this->_finishRecieving(response);
+		this->_finishRecieving(request, response);
 }
 
 std::string const &	CGI::getPath(void)
