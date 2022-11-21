@@ -1,5 +1,6 @@
 #include <string>
 #include <iostream>
+#include <csignal>
 #include "Meta.hpp"
 
 int	main(int argc, char **argv)
@@ -42,6 +43,8 @@ int	main(int argc, char **argv)
 		std::cerr << "error: " << e.what() << std::endl;
 		return (1);
 	}
+
+	signal(SIGPIPE, SIGINT);
 
 	Meta::servers_type::iterator	it = meta.servers.begin();
 
