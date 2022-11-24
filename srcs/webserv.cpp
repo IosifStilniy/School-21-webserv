@@ -44,7 +44,7 @@ int	main(int argc, char **argv)
 		return (1);
 	}
 
-	signal(SIGPIPE, SIGINT);
+	signal(SIGPIPE, SIG_IGN);
 
 	Meta::servers_type::iterator	it = meta.servers.begin();
 
